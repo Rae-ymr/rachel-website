@@ -97,7 +97,13 @@ const projects: Array<{
   },
   {
     title: "Real-time 3D object detection",
-    tags: ["computer vision", "Express.js", "Azure"],
+    tags: [
+      "computer vision",
+      "object segmentation",
+      "object detection",
+      "object depth estimation",
+      "Azure",
+    ],
     summary:
       "Designed custom inference algorithms and modular streaming APIs for a patent-filed real-time detection system.",
     href: "https://github.com/Rae-ymr/real-time-3D-object-detection-system/tree/main",

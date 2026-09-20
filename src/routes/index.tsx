@@ -60,7 +60,7 @@ const experience = [
       "Deployed Pangeo on AWS and Kubernetes, orchestrating and scaling 128 Docker containers.",
   },
   {
-    title: "Software & Test Engineer · Long Fang Wan Fang",
+    title: "Software & Test Engineer · BaiDu",
     date: "Jun 2020 — Dec 2020",
     summary:
       "Improved a Jetty-based signup service and its test coverage, cutting request time by up to 30%.",
@@ -72,7 +72,17 @@ const projects: Array<{
   tags: string[];
   summary: string;
   href?: string;
+  videoUrl?: string;
+  status?: "ongoing";
 }> = [
+  {
+    title: "Daily Stock Analysis Agent",
+    tags: ["LangGraph", "corrective RAG", "LightGBM", "FastAPI"],
+    summary:
+      "A multi-agent stock research pipeline combining technical, news, quantitative, and risk agents with a human approval checkpoint.",
+    href: "https://github.com/Rae-ymr/daily_stock_agent",
+    status: "ongoing",
+  },
   {
     title: "Real-time driver incentive optimization",
     tags: ["quadratic optimization", "Python", "production ML"],
@@ -90,19 +100,15 @@ const projects: Array<{
     tags: ["computer vision", "Express.js", "Azure"],
     summary:
       "Designed custom inference algorithms and modular streaming APIs for a patent-filed real-time detection system.",
+    href: "https://github.com/Rae-ymr/real-time-3D-object-detection-system/tree/main",
+    videoUrl:
+      "https://media.githubusercontent.com/media/Rae-ymr/real-time-3D-object-detection-system/main/example.mp4",
   },
   {
     title: "UAV obstacle avoidance with Circle RRT*",
     tags: ["path planning", "deep learning", "research"],
     summary:
       "Combined object detection with classic pathfinding to reduce computation time by 20% and path length by up to 6%.",
-  },
-  {
-    title: "Daily Stock Analysis Agent",
-    tags: ["LangGraph", "corrective RAG", "LightGBM", "FastAPI"],
-    summary:
-      "A multi-agent stock research pipeline combining technical, news, quantitative, and risk agents with a human approval checkpoint.",
-    href: "https://github.com/Rae-ymr/daily_stock_agent",
   },
 ];
 
@@ -473,9 +479,9 @@ function Index() {
                 ],
                 [
                   "03",
-                  "Selected work",
+                  "Projects",
                   "AI, optimization, and computer vision",
-                  "#work",
+                  "#projects",
                 ],
                 ["04", "Publications", "Research and writing", "#publications"],
                 [
@@ -516,7 +522,7 @@ function Index() {
                 LinkedIn
               </a>
               <a
-                href="https://scholar.google.com/scholar?q=%22Rachel+Yu%22+UAV+obstacle+avoidance"
+                href="https://scholar.google.com/citations?user=PTRM5cMAAAAJ&hl=en"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -566,7 +572,7 @@ function Index() {
             <Github />
           </a>
           <a
-            href="https://scholar.google.com/scholar?q=%22Rachel+Yu%22+UAV+obstacle+avoidance"
+            href="https://scholar.google.com/citations?user=PTRM5cMAAAAJ&hl=en"
             target="_blank"
             rel="noreferrer"
             aria-label="Rachel Yu on Google Scholar"
@@ -593,9 +599,9 @@ function Index() {
             </div>
           </section>
 
-          <section id="work">
+          <section id="projects">
             <SectionHeading
-              title="Selected work"
+              title="Projects"
               count={projects.length}
               description="High-impact systems across optimization, generative AI, and computer vision."
             />
@@ -620,11 +626,23 @@ function Index() {
                     )}
                   </h3>
                   <div className="tags">
+                    {project.status ? (
+                      <span className="project-status">{project.status}</span>
+                    ) : null}
                     {project.tags.map((tag) => (
                       <span key={tag}>{tag}</span>
                     ))}
                   </div>
                   <p>{project.summary}</p>
+                  {project.videoUrl ? (
+                    <div className="project-demo">
+                      <video controls playsInline preload="metadata">
+                        <source src={project.videoUrl} type="video/mp4" />
+                        Your browser does not support embedded video.
+                      </video>
+                      <span>Recorded project demonstration</span>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -698,7 +716,7 @@ function Index() {
           <p>Rachel&apos;s Space</p>
           <nav aria-label="Site">
             <a href="#experience">Experience</a>
-            <a href="#work">Work</a>
+            <a href="#projects">Projects</a>
             <a href="#publications">Publications</a>
             <a href="#toolkit">Toolkit</a>
             <a href="#education">Education</a>

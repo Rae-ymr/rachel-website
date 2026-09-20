@@ -470,6 +470,24 @@ h1 {
 .project-title-link:hover {
   color: var(--color-primary);
 }
+.project-demo {
+  margin-top: 18px;
+}
+.project-demo video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #18181b;
+  object-fit: contain;
+}
+.project-demo span {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-muted-foreground);
+  font-size: 0.8rem;
+}
 .entry-card time {
   display: block;
   margin-top: 8px;
@@ -492,6 +510,10 @@ h1 {
   color: var(--color-foreground);
   font-size: 0.9rem;
   font-weight: 700;
+}
+.tags .project-status {
+  color: #15803d;
+  text-transform: capitalize;
 }
 .tags span:not(:last-child)::after {
   content: " ·";

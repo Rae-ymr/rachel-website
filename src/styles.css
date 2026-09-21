@@ -471,7 +471,8 @@ h1 {
   color: var(--color-primary);
 }
 .project-demo {
-  margin-top: 18px;
+  width: min(100%, 420px);
+  margin: 18px auto 0;
 }
 .project-demo video {
   display: block;
@@ -482,6 +483,17 @@ h1 {
   background: #18181b;
   object-fit: contain;
 }
+.project-demo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
+}
+.project-demo figcaption,
 .project-demo span {
   display: block;
   margin-top: 7px;
@@ -539,10 +551,7 @@ footer svg {
 }
 .timeline-row {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 20px;
-  align-items: start;
+  display: block;
   padding: 20px 22px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -551,6 +560,15 @@ footer svg {
     transform 0.22s var(--ease-out),
     box-shadow 0.22s var(--ease-out),
     border-color 0.22s ease;
+}
+.publication-heading {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 20px;
+}
+.publication-media {
+  margin-top: 18px;
 }
 .timeline-row:hover {
   border-color: var(--line-strong);
@@ -697,9 +715,11 @@ footer svg {
     font-size: 1.35rem;
   }
   .timeline-row {
+    padding: 16px;
+  }
+  .publication-heading {
     grid-template-columns: 1fr;
     gap: 8px;
-    padding: 16px;
   }
   .footer-top {
     flex-direction: column;

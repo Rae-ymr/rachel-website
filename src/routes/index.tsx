@@ -72,7 +72,9 @@ const projects: Array<{
   tags: string[];
   summary: string;
   href?: string;
+  imageUrl?: string;
   videoUrl?: string;
+  autoPlayVideo?: boolean;
   status?: "ongoing";
 }> = [
   {
@@ -115,23 +117,36 @@ const projects: Array<{
     tags: ["path planning", "deep learning", "research"],
     summary:
       "Combined object detection with classic pathfinding to reduce computation time by 20% and path length by up to 6%.",
+    href: "https://www.researchgate.net/publication/409415879_Monocular_Vision_Measurement_for_Drones_Obstacle_Avoidance_and_Autonomous_Path_Planning_With_Circle_RRT",
+    imageUrl: "/images/uav-pipeline-small.png",
   },
 ];
 
 const publications = [
-  [
-    "Monocular Vision Measurement for UAV Obstacle Avoidance and Path Planning with Circle RRT*",
-    "IEEE OJIM · 2026",
-  ],
-  [
-    "Shaping Tomorrow: Responsible Innovation for a Brighter Future",
-    "World Economic Forum · 2025",
-  ],
-  [
-    "Two-Stage Approach to Small-Object Detection",
-    "Systems Engineering · 2024",
-  ],
-  ["Small-object Detection for UAV-based Images", "IEEE SysCon · 2023"],
+  {
+    title:
+      "Monocular Vision Measurement for UAV Obstacle Avoidance and Path Planning with Circle RRT*",
+    date: "IEEE OJIM · 2026",
+    imageUrl: "/images/uav-improved-path-small.png",
+  },
+  {
+    title: "Shaping Tomorrow: Responsible Innovation for a Brighter Future",
+    date: "World Economic Forum · 2025",
+  },
+  {
+    title: "Two-Stage Approach to Small-Object Detection",
+    date: "Systems Engineering · 2024",
+  },
+  {
+    title: "Small-object Detection for UAV-based Images",
+    date: "IEEE SysCon · 2023",
+    videoUrl: "/videos/uav-result-small.mp4",
+  },
+  {
+    title:
+      "System and Method for Class-Agnostic Counting of One or More Items in a Container",
+    date: "U.S. Patent App. No. 19/078,802 · Pending",
+  },
 ];
 
 const skills = [
@@ -489,7 +504,12 @@ function Index() {
                   "AI, optimization, and computer vision",
                   "#projects",
                 ],
-                ["04", "Publications", "Research and writing", "#publications"],
+                [
+                  "04",
+                  "Publications & Patents",
+                  "Research, writing, and inventions",
+                  "#publications",
+                ],
                 [
                   "05",
                   "Technical toolkit",
@@ -640,9 +660,26 @@ function Index() {
                     ))}
                   </div>
                   <p>{project.summary}</p>
+                  {project.imageUrl ? (
+                    <figure className="project-demo">
+                      <img
+                        src={project.imageUrl}
+                        alt={`${project.title} system pipeline`}
+                        loading="lazy"
+                      />
+                      <figcaption>System pipeline</figcaption>
+                    </figure>
+                  ) : null}
                   {project.videoUrl ? (
                     <div className="project-demo">
-                      <video controls playsInline preload="metadata">
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        autoPlay={project.autoPlayVideo}
+                        loop={project.autoPlayVideo}
+                        muted={project.autoPlayVideo}
+                      >
                         <source src={project.videoUrl} type="video/mp4" />
                         Your browser does not support embedded video.
                       </video>
@@ -662,17 +699,45 @@ function Index() {
 
           <section id="publications">
             <SectionHeading
-              title="Publications"
+              title="Publications & Patents"
               count={publications.length}
-              description="Research in UAV perception, path planning, and responsible innovation."
+              description="Research in UAV perception, path planning, responsible innovation, and computer vision systems."
             />
             <div className="timeline">
-              {publications.map(([title, date]) => (
-                <div className="timeline-row" key={title}>
+              {publications.map((publication) => (
+                <article className="timeline-row" key={publication.title}>
                   <span className="timeline-dot" aria-hidden="true" />
-                  <h3>{title}</h3>
-                  <time>{date}</time>
-                </div>
+                  <div className="publication-heading">
+                    <h3>{publication.title}</h3>
+                    <time>{publication.date}</time>
+                  </div>
+                  {publication.imageUrl ? (
+                    <figure className="project-demo publication-media">
+                      <img
+                        src={publication.imageUrl}
+                        alt="Simulation results showing the improved Circle RRT* path"
+                        loading="lazy"
+                      />
+                      <figcaption>Circle RRT* simulation results</figcaption>
+                    </figure>
+                  ) : null}
+                  {publication.videoUrl ? (
+                    <div className="project-demo publication-media">
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        autoPlay
+                        loop
+                        muted
+                      >
+                        <source src={publication.videoUrl} type="video/mp4" />
+                        Your browser does not support embedded video.
+                      </video>
+                      <span>UAV path-planning simulation</span>
+                    </div>
+                  ) : null}
+                </article>
               ))}
             </div>
           </section>
@@ -723,7 +788,7 @@ function Index() {
           <nav aria-label="Site">
             <a href="#experience">Experience</a>
             <a href="#projects">Projects</a>
-            <a href="#publications">Publications</a>
+            <a href="#publications">Publications & Patents</a>
             <a href="#toolkit">Toolkit</a>
             <a href="#education">Education</a>
           </nav>

@@ -73,6 +73,7 @@ const projects: Array<{
   summary: string;
   href?: string;
   imageUrl?: string;
+  imageGallery?: Array<{ src: string; alt: string }>;
   videoUrl?: string;
   autoPlayVideo?: boolean;
   status?: "ongoing";
@@ -92,12 +93,6 @@ const projects: Array<{
       "Led a cross-functional 0-to-1 launch of low-latency incentive optimization services driving $30M+ in annual profit.",
   },
   {
-    title: "Edge AI multi-agent assistant",
-    tags: ["Llama", "LoRA", "RAG", "quantization"],
-    summary:
-      "Fine-tuned and quantized Llama for local drone inference, then built and evaluated a multi-agent RAG pipeline around it.",
-  },
-  {
     title: "Real-time 3D object detection",
     tags: [
       "computer vision",
@@ -111,6 +106,28 @@ const projects: Array<{
     href: "https://github.com/Rae-ymr/real-time-3D-object-detection-system/tree/main",
     videoUrl:
       "https://media.githubusercontent.com/media/Rae-ymr/real-time-3D-object-detection-system/main/example.mp4",
+  },
+  {
+    title: "PPE safety-zone detection",
+    tags: [
+      "YOLO",
+      "monocular vision",
+      "position estimation",
+      "polygon geofencing",
+    ],
+    summary:
+      "Detected people and safety helmets with YOLO, estimated each person's position from a monocular camera using geometric algorithms, and applied polygonal safety zones to highlight workers inside restricted areas without helmets using red bounding boxes.",
+    href: "https://github.com/Rae-ymr/UAV_Object_Detection_And_Tracking",
+    imageGallery: [
+      {
+        src: "/images/ppe1.jpg",
+        alt: "PPE detection showing workers and helmet safety-zone results",
+      },
+      {
+        src: "/images/ppe2.jpg",
+        alt: "PPE detection highlighting workers inside the polygonal safety zone",
+      },
+    ],
   },
   {
     title: "UAV obstacle avoidance with Circle RRT*",
@@ -668,6 +685,19 @@ function Index() {
                         loading="lazy"
                       />
                       <figcaption>System pipeline</figcaption>
+                    </figure>
+                  ) : null}
+                  {project.imageGallery ? (
+                    <figure className="project-gallery">
+                      {project.imageGallery.map((image) => (
+                        <img
+                          src={image.src}
+                          alt={image.alt}
+                          loading="lazy"
+                          key={image.src}
+                        />
+                      ))}
+                      <figcaption>PPE detection results</figcaption>
                     </figure>
                   ) : null}
                   {project.videoUrl ? (

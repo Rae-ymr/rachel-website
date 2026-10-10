@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM speed and memory techniques: pipeline map</title>
+<style>
+:root{
+  --text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--text-danger:#a32d2d;--text-success:#3b6d11;--text-accent:#185fa5;--text-warning:#854f0b;
+  --surface-1:#f5f4ef;--surface-2:#ffffff;--page:#ffffff;
+  --border:rgba(0,0,0,.12);--border-strong:rgba(0,0,0,.22);--border-accent:#378add;
+  --bg-accent:#e6f1fb;--bg-success:#eaf3de;--bg-warning:#faeeda;
+  --radius:8px;--font-sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --b:rgba(0,0,0,.25);--t:#5f5e5a;
+}
+@media (prefers-color-scheme: dark){:root{
+  --text-primary:#ecebe6;--text-secondary:#b4b2a9;--text-muted:#888780;--text-danger:#f09595;--text-success:#97c459;--text-accent:#85b7eb;--text-warning:#fac775;
+  --surface-1:#2a2a28;--surface-2:#1f1f1e;--page:#1a1a19;
+  --border:rgba(255,255,255,.12);--border-strong:rgba(255,255,255,.24);--border-accent:#85b7eb;
+  --bg-accent:#0c447c;--bg-success:#27500a;--bg-warning:#633806;
+  --b:rgba(255,255,255,.3);--t:#b4b2a9;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text-primary);font-family:var(--font-sans);font-size:16px;line-height:1.6}
+main{max-width:760px;margin:0 auto;padding:2rem 1rem 3rem}
+.back{display:inline-block;font-size:13px;color:var(--text-secondary);text-decoration:none;margin-bottom:1rem}
+.back:hover{color:var(--text-primary)}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}
+.lead{color:var(--text-secondary);font-size:14px;margin:0 0 1rem}
+button,select{font:inherit;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:5px 10px;cursor:pointer}
+button:hover{background:var(--surface-1)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--border-accent);outline-offset:2px}
+select{background:var(--surface-2)}
+input[type=range]{accent-color:var(--border-accent)}
+input[type=checkbox]{accent-color:var(--border-accent)}
+svg text{font-family:var(--font-sans)}
+.t{font-size:14px;fill:var(--text-primary)}.ts{font-size:12px;fill:var(--text-secondary)}.th{font-size:14px;font-weight:500;fill:var(--text-primary)}
+.arr{stroke:var(--t);stroke-width:1.5;fill:none}
+.node{cursor:pointer}.node:hover{opacity:.85}
+.c-purple>rect{fill:#EEEDFE;stroke:#534AB7}.c-purple>.th{fill:#3C3489}.c-purple>.ts{fill:#534AB7}
+.c-gray>rect{fill:#F1EFE8;stroke:#5F5E5A}.c-gray>.th{fill:#444441}.c-gray>.ts{fill:#5F5E5A}
+.c-teal>rect{fill:#E1F5EE;stroke:#0F6E56}.c-teal>.th{fill:#085041}.c-teal>.ts{fill:#0F6E56}
+@media (prefers-color-scheme: dark){
+.c-purple>rect{fill:#3C3489;stroke:#AFA9EC}.c-purple>.th{fill:#CECBF6}.c-purple>.ts{fill:#AFA9EC}
+.c-gray>rect{fill:#444441;stroke:#B4B2A9}.c-gray>.th{fill:#D3D1C7}.c-gray>.ts{fill:#B4B2A9}
+.c-teal>rect{fill:#085041;stroke:#5DCAA5}.c-teal>.th{fill:#9FE1CB}.c-teal>.ts{fill:#5DCAA5}}
+.fbtn.on{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.chip{font-size:12px;padding:4px 9px;border:0.5px solid var(--border);background:var(--surface-1);transition:opacity .2s}
+.chip.dim{opacity:.18}
+.chip.sel{border-color:var(--border-accent);background:var(--bg-accent);color:var(--text-accent)}
+.tag{font-size:11px;padding:1px 6px;border-radius:var(--radius);margin-right:4px}
+.stg{transition:opacity .2s}.stg.dim{opacity:.3}
+.row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);flex-wrap:wrap}
+.seg{transition:width .35s}
+.card{background:var(--surface-1);border-radius:var(--radius);padding:10px 12px}
+.card .v{font-size:22px;font-weight:500;color:var(--text-primary)}
+.card .l{font-size:12px;color:var(--text-secondary)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="/#learning">← Rachel's Space</a>
+<h1>Where each LLM speed and memory technique fits</h1>
+<p class="lead">Training vs. inference, prefill vs. decode, and how much VRAM each lever saves.</p>
+
+<div class="row" style="margin:0.5rem 0 10px" id="filters">
+<button class="fbtn on" data-f="all">All</button>
+<button class="fbtn" data-f="train">Training / build time</button>
+<button class="fbtn" data-f="req">Request path</button>
+<button class="fbtn" data-f="prefill">Prefill</button>
+<button class="fbtn" data-f="decode">Decode</button>
+<button class="fbtn" data-f="vram">Saves VRAM</button>
+</div>
+
+<svg width="100%" viewBox="0 0 680 350" role="img" id="pipe">
+<title>LLM pipeline stages</title><desc>Build-time lane, request path lane, and GPU engine lane with animated tokens flowing from gateway to decode.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="30" y="8" width="620" height="100" rx="12" fill="none" stroke="var(--b)" stroke-dasharray="4 4" stroke-width="0.5"/>
+<text class="ts" x="44" y="26">Build time (offline, before serving)</text>
+<rect x="30" y="120" width="620" height="100" rx="12" fill="none" stroke="var(--b)" stroke-dasharray="4 4" stroke-width="0.5"/>
+<text class="ts" x="44" y="138">Request path (before the GPU)</text>
+<rect x="30" y="232" width="620" height="100" rx="12" fill="none" stroke="var(--b)" stroke-dasharray="4 4" stroke-width="0.5"/>
+<text class="ts" x="44" y="250">GPU engine (weights + KV live in VRAM)</text>
+<g class="node stg c-purple" data-s="arch"><rect x="42" y="38" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="107" y="57" text-anchor="middle" dominant-baseline="central">Architecture</text><text class="ts" x="107" y="76" text-anchor="middle" dominant-baseline="central">GQA, MLA, SWA, MoE</text></g>
+<g class="node stg c-purple" data-s="train"><rect x="198" y="38" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="263" y="57" text-anchor="middle" dominant-baseline="central">Train / tune</text><text class="ts" x="263" y="76" text-anchor="middle" dominant-baseline="central">QAT, distill, fp8</text></g>
+<g class="node stg c-purple" data-s="comp"><rect x="354" y="38" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="419" y="57" text-anchor="middle" dominant-baseline="central">Compress</text><text class="ts" x="419" y="76" text-anchor="middle" dominant-baseline="central">Prune, PTQ, KV quant</text></g>
+<g class="node stg c-purple" data-s="gate"><rect x="510" y="38" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="575" y="57" text-anchor="middle" dominant-baseline="central">Eval gate</text><text class="ts" x="575" y="76" text-anchor="middle" dominant-baseline="central">Flip rate, rollback</text></g>
+<line x1="172" y1="66" x2="196" y2="66" class="arr" marker-end="url(#arrow)"/>
+<line x1="328" y1="66" x2="352" y2="66" class="arr" marker-end="url(#arrow)"/>
+<line x1="484" y1="66" x2="508" y2="66" class="arr" marker-end="url(#arrow)"/>
+<g class="node stg c-gray" data-s="gw"><rect x="42" y="150" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="107" y="169" text-anchor="middle" dominant-baseline="central">Gateway</text><text class="ts" x="107" y="188" text-anchor="middle" dominant-baseline="central">Budgets, fallback</text></g>
+<g class="node stg c-gray" data-s="cache"><rect x="198" y="150" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="263" y="169" text-anchor="middle" dominant-baseline="central">Cache + trim</text><text class="ts" x="263" y="188" text-anchor="middle" dominant-baseline="central">Semantic, compress</text></g>
+<g class="node stg c-gray" data-s="route"><rect x="354" y="150" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="419" y="169" text-anchor="middle" dominant-baseline="central">Router</text><text class="ts" x="419" y="188" text-anchor="middle" dominant-baseline="central">Small vs big, cascade</text></g>
+<g class="node stg c-gray" data-s="sched"><rect x="510" y="150" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="575" y="169" text-anchor="middle" dominant-baseline="central">Scheduler</text><text class="ts" x="575" y="188" text-anchor="middle" dominant-baseline="central">Continuous batching</text></g>
+<line x1="172" y1="178" x2="196" y2="178" class="arr" marker-end="url(#arrow)"/>
+<line x1="328" y1="178" x2="352" y2="178" class="arr" marker-end="url(#arrow)"/>
+<line x1="484" y1="178" x2="508" y2="178" class="arr" marker-end="url(#arrow)"/>
+<path d="M575 206 L575 226 L107 226 L107 260" class="arr" marker-end="url(#arrow)"/>
+<g class="node stg c-teal" data-s="prefill"><rect x="42" y="262" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="107" y="281" text-anchor="middle" dominant-baseline="central">Prefill</text><text class="ts" x="107" y="300" text-anchor="middle" dominant-baseline="central">Compute-bound</text></g>
+<g class="node stg c-teal" data-s="kv"><rect x="198" y="262" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="263" y="281" text-anchor="middle" dominant-baseline="central">KV cache</text><text class="ts" x="263" y="300" text-anchor="middle" dominant-baseline="central">VRAM capacity</text></g>
+<g class="node stg c-teal" data-s="decode"><rect x="354" y="262" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="419" y="281" text-anchor="middle" dominant-baseline="central">Decode ↻</text><text class="ts" x="419" y="300" text-anchor="middle" dominant-baseline="central">Bandwidth-bound</text></g>
+<g class="node stg c-teal" data-s="out"><rect x="510" y="262" width="130" height="56" rx="8" stroke-width="0.5"/><text class="th" x="575" y="281" text-anchor="middle" dominant-baseline="central">Scale + stream</text><text class="ts" x="575" y="300" text-anchor="middle" dominant-baseline="central">TP, PP, EP, replicas</text></g>
+<line x1="172" y1="290" x2="196" y2="290" class="arr" marker-end="url(#arrow)"/>
+<line x1="328" y1="290" x2="352" y2="290" class="arr" marker-end="url(#arrow)"/>
+<line x1="484" y1="290" x2="508" y2="290" class="arr" marker-end="url(#arrow)"/>
+<path id="flow" d="M60 178 L575 178 L575 226 L107 226 L107 290 L620 290" fill="none" stroke="none"/>
+<g id="dots">
+<circle r="4" fill="#EF9F27"><animateMotion dur="6s" repeatCount="indefinite" begin="0s"><mpath href="#flow"/></animateMotion></circle>
+<circle r="4" fill="#EF9F27"><animateMotion dur="6s" repeatCount="indefinite" begin="1.5s"><mpath href="#flow"/></animateMotion></circle>
+<circle r="4" fill="#EF9F27"><animateMotion dur="6s" repeatCount="indefinite" begin="3s"><mpath href="#flow"/></animateMotion></circle>
+<circle r="4" fill="#EF9F27"><animateMotion dur="6s" repeatCount="indefinite" begin="4.5s"><mpath href="#flow"/></animateMotion></circle>
+<circle r="4" fill="#7F77DD"><animateMotion dur="5s" repeatCount="indefinite" path="M60 66 L620 66"/></circle>
+</g>
+</svg>
+
+<div class="row" style="margin:6px 0 8px;font-size:12px">
+<span class="tag" style="background:var(--bg-success);color:var(--text-success)">speed</span>
+<span class="tag" style="background:var(--bg-accent);color:var(--text-accent)">VRAM</span>
+<span class="tag" style="background:var(--bg-warning);color:var(--text-warning)">cost</span>
+<span>Click a box or filter, then a technique for details</span>
+</div>
+<div id="chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+<div id="detail" style="background:var(--surface-1);border-radius:var(--radius);padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text-secondary);min-height:64px">Pick a technique to see where it runs, which bottleneck it fixes, and its cost.</div>
+
+<section style="margin-top:1.5rem;border-top:0.5px solid var(--border);padding-top:1rem">
+<div style="font-size:16px;font-weight:500;margin-bottom:4px">VRAM and decode-speed lab</div>
+<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">8B dense model, 32 layers, head dim 128, one 80 GB GPU at 3.35 TB/s. Rough first-order estimates, not benchmarks.</div>
+<div class="row" style="margin-bottom:8px"><span style="min-width:96px">Context</span><input type="range" id="ctx" min="10" max="17" step="1" value="13" style="flex:1"><span id="ctxo" style="min-width:56px;font-weight:500;color:var(--text-primary)"></span></div>
+<div class="row" style="margin-bottom:10px"><span style="min-width:96px">Batch (seqs)</span><input type="range" id="bs" min="1" max="64" step="1" value="16" style="flex:1"><span id="bso" style="min-width:56px;font-weight:500;color:var(--text-primary)"></span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 16px;margin-bottom:10px">
+<label class="row">Attention <select id="att"><option value="mha">MHA (32 KV heads)</option><option value="gqa">GQA (8 KV heads)</option><option value="mla">MLA (latent)</option></select></label>
+<label class="row">Weights <select id="wq"><option value="2">fp16</option><option value="1">int8 / fp8</option><option value="0.516">int4 (g128)</option></select></label>
+<label class="row">KV dtype <select id="kq"><option value="2">fp16</option><option value="1">fp8 / int8</option><option value="0.5">int4 / 2-bit KIVI-ish</option></select></label>
+<label class="row">Tensor parallel <select id="tp"><option>1</option><option>2</option><option>4</option><option>8</option></select></label>
+<label class="row"><input type="checkbox" id="kvc" checked> KV cache (ch04)</label>
+<label class="row"><input type="checkbox" id="pg"> Paged attention</label>
+<label class="row"><input type="checkbox" id="swa"> Sliding window 5:1</label>
+<label class="row"><input type="checkbox" id="pfx"> Prefix cache (25% shared)</label>
+<label class="row"><input type="checkbox" id="off"> Offload idle KV to CPU</label>
+<label class="row"><input type="checkbox" id="spec"> Speculative decoding</label>
+</div>
+<div class="row" style="margin-bottom:12px"><button id="all">Apply all levers</button><button id="rst">Reset to naive</button></div>
+<div style="position:relative;height:34px;background:var(--surface-1);border-radius:var(--radius);overflow:hidden;display:flex">
+<div class="seg" id="sw" style="background:#7F77DD"></div>
+<div class="seg" id="sk" style="background:#1D9E75"></div>
+<div class="seg" id="sf" style="background:#E24B4A;opacity:.55"></div>
+<div class="seg" id="sa" style="background:#888780"></div>
+<div id="cap" style="position:absolute;top:0;bottom:0;width:2px;background:var(--text-danger)"></div>
+</div>
+<div class="row" style="font-size:12px;margin:6px 0 12px">
+<span><span class="sw" style="background:#7F77DD"></span> Weights</span>
+<span><span class="sw" style="background:#1D9E75"></span> KV cache</span>
+<span><span class="sw" style="background:#E24B4A;opacity:.55"></span> Fragmentation waste</span>
+<span><span class="sw" style="background:#888780"></span> Activations / runtime</span>
+<span style="color:var(--text-danger)">| 80 GB limit</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+<div class="card"><div class="l">VRAM per GPU</div><div class="v" id="mv"></div><div style="font-size:12px" id="mfit"></div></div>
+<div class="card"><div class="l">KV per token</div><div class="v" id="mkv"></div></div>
+<div class="card"><div class="l">Decode, per seq</div><div class="v" id="mt"></div></div>
+<div class="card"><div class="l">Total throughput</div><div class="v" id="mtt"></div></div>
+</div>
+<div id="note" style="font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.6"></div>
+</section>
+<p style="font-size:12px;color:var(--text-muted);margin-top:2rem">Sources: neurarch-ai/awesome-llm-system-design topics 04, 11, 17; rasbt/LLMs-from-scratch ch04.</p>
+</main>
+
+<script>
+const T=[
+{n:"Grouped-query attention",s:"arch",p:["train","decode"],b:["vram","speed"],w:"Chosen at model design / pretraining; pays off in decode.",f:"KV cache size and the bytes decode must read every step.",e:"Several query heads share one K/V head, so KV shrinks by heads/kv_heads (4x for 32→8).",c:"Small quality cost vs MHA; must be trained in (or up-trained).",src:"LLMs-from-scratch ch04/04_gqa"},
+{n:"Multi-head latent attention",s:"arch",p:["train","decode"],b:["vram","speed"],w:"Architecture choice (DeepSeek-V3).",f:"KV cache at long context.",e:"Caches a small compressed latent per token instead of full K/V, then up-projects.",c:"Extra projection math; more complex kernels.",src:"ch04/05_mla, topic 17"},
+{n:"Sliding window attention",s:"arch",p:["train","prefill","decode"],b:["vram","speed"],w:"Architecture choice (Gemma 3 mixes local and global layers).",f:"KV growth with context length.",e:"Local layers only keep the last W tokens of KV, so memory stops growing linearly.",c:"Long-range recall relies on the few global layers.",src:"ch04/06_swa"},
+{n:"Mixture of experts",s:"arch",p:["train","prefill","decode"],b:["speed","cost"],w:"Architecture; served with expert parallelism.",f:"Compute per token.",e:"Each token runs only a few experts, so FLOPs per token are a fraction of total params.",c:"All experts still need VRAM; all-to-all traffic and load-balance issues.",src:"ch04 bonus, topic 04"},
+{n:"Linear-attention alternatives",s:"arch",p:["train","decode"],b:["vram","speed"],w:"Architecture (hybrid models).",f:"Quadratic attention and growing KV.",e:"Replace some attention layers with a fixed-size recurrent state.",c:"Usually hybridized with full attention to keep recall.",src:"ch04 attention-alternatives section"},
+{n:"FLOPs analysis",s:"arch",p:["train"],b:["speed"],w:"Before training or serving: profiling.",f:"Knowing whether you are compute- or memory-bound.",e:"Counts FLOPs per forward pass to size hardware and batch.",c:"Analysis only, no speedup by itself.",src:"ch04/02_performance-analysis"},
+{n:"FP8 end-to-end training",s:"train",p:["train"],b:["speed","vram","cost"],w:"Pretraining (DeepSeek-V3).",f:"Training compute and memory.",e:"Low-precision matmuls double throughput on fp8 tensor cores; serve in fp8 natively.",c:"Needs careful scaling and kernel support.",src:"topic 17"},
+{n:"Quantization-aware training",s:"train",p:["train"],b:["vram","speed"],w:"Training / fine-tuning.",f:"Quality loss below 4 bits.",e:"Simulates the quantizer during training so the model learns to tolerate it.",c:"Needs a training run, often with distillation loss.",src:"topic 17"},
+{n:"Train-time ternary (BitNet)",s:"train",p:["train"],b:["vram","speed"],w:"Full pretraining.",f:"Extreme memory and energy limits.",e:"1.58-bit weights trained from scratch.",c:"Cannot be reached by PTQ; needs full pretraining.",src:"topic 17"},
+{n:"Distillation",s:"train",p:["train"],b:["cost","speed","vram"],w:"After pretraining (offline, sequence-level, on-policy).",f:"Model too big for the target.",e:"A small student learns the teacher's soft targets; right-sizes the served model.",c:"Student inherits teacher's verbosity and contamination.",src:"topic 17"},
+{n:"QLoRA",s:"train",p:["train"],b:["vram","cost"],w:"Fine-tuning only.",f:"VRAM needed to fine-tune.",e:"4-bit frozen base plus small LoRA adapters.",c:"Not a serving quantization; validate adapters on the served artifact.",src:"topic 17"},
+{n:"Structured prune + heal",s:"comp",p:["train"],b:["vram","speed"],w:"Post-training, then a healing / distill run.",f:"Need a genuinely smaller model.",e:"Remove heads, channels or layers, then distill from the parent (Minitron, Sheared LLaMA).",c:"Depth cuts hurt multi-step reasoning; needs billions of tokens.",src:"topic 17"},
+{n:"One-shot pruning (SparseGPT, Wanda)",s:"comp",p:["decode"],b:["vram"],w:"Post-training.",f:"Memory, or 2:4 sparse tensor cores.",e:"Zeros weights by activation-aware score; 2:4 gives real speed on supported GPUs.",c:"Unstructured sparsity gives no speed on dense kernels.",src:"topic 17"},
+{n:"Weight-only int4 (GPTQ, AWQ)",s:"comp",p:["decode"],b:["vram","speed"],w:"Post-training quantization, hours.",f:"Model fit and decode bandwidth.",e:"About 4x fewer weight bytes; decode reads fewer bytes so it gets faster at small batch.",c:"Win shrinks at high batch; needs fused kernels.",src:"topic 17, topic 04"},
+{n:"W8A8 / fp8 compute (SmoothQuant)",s:"comp",p:["prefill","decode"],b:["speed","cost"],w:"Post-training.",f:"Prefill and high-batch compute.",e:"Quantizes activations too, so matmuls run in low precision.",c:"Activation outliers need smoothing.",src:"topic 17, topic 11"},
+{n:"Rotation quant (QuaRot, SpinQuant)",s:"comp",p:["prefill","decode"],b:["vram","speed"],w:"Post-training, rotation fused at export.",f:"4-bit activations and KV.",e:"Rotates outliers away so everything quantizes cleanly.",c:"Extra export complexity.",src:"topic 17"},
+{n:"KV cache quantization",s:"comp",p:["decode"],b:["vram","speed"],w:"Serving config.",f:"KV memory at long context / high concurrency.",e:"Keys per-channel, values per-token at 8 or 2-4 bits; more sequences fit, bigger batch.",c:"Long-context recall can drop; eval it.",src:"topic 17 (KIVI), topic 04"},
+{n:"Mixed precision by layer",s:"comp",p:["decode"],b:["vram"],w:"At export.",f:"One capability regressed after quant.",e:"Keep embeddings, output head, first/last blocks higher precision.",c:"Slightly larger artifact.",src:"topic 17"},
+{n:"Acceptance test + flip rate",s:"gate",p:["train"],b:["cost"],w:"Before shipping any compressed model.",f:"Silent quality regressions.",e:"Paired comparison vs baseline; report item flips, not just accuracy.",c:"Needs a representative eval set.",src:"topic 17"},
+{n:"LLM gateway",s:"gw",p:["req"],b:["cost"],w:"In front of every request.",f:"Invisible spend, outages.",e:"Budgets, rate limits, fallbacks, and per-call cost logging in one place.",c:"Silent fallback can hide outages.",src:"topic 11"},
+{n:"Semantic cache",s:"cache",p:["req"],b:["cost","speed"],w:"Before the model call.",f:"Paying for repeated questions.",e:"Embedding similarity serves a stored answer, zero GPU work.",c:"Loose threshold serves wrong answers; never share-cache personal data.",src:"topic 11"},
+{n:"Prompt compression / trim",s:"cache",p:["req","prefill"],b:["cost","speed"],w:"Before prefill.",f:"Input-token bill and prefill time.",e:"Send fewer chunks; LLMLingua drops low-information tokens.",c:"Lossy; back off for code, legal, extraction.",src:"topic 11"},
+{n:"Model routing",s:"route",p:["req"],b:["cost","speed"],w:"Before the call.",f:"Frontier model on easy queries.",e:"Cheap classifier or preference router sends easy work to a small model (RouteLLM).",c:"Decides blind; drifts with traffic.",src:"topic 11"},
+{n:"Cascades",s:"route",p:["req"],b:["cost"],w:"After a cheap first answer.",f:"Router mistakes.",e:"Small model first, escalate when confidence or a verifier fails (FrugalGPT).",c:"Miscalibrated cutoff pays for two models.",src:"topic 11"},
+{n:"Right-sizing per task",s:"route",p:["req"],b:["cost","vram"],w:"System design.",f:"One big model for everything.",e:"Small models for classify, extract, embed, rerank.",c:"More models to operate.",src:"topic 11"},
+{n:"Batch API / offline bulk",s:"route",p:["req"],b:["cost"],w:"Jobs with no user waiting.",f:"Bulk work at online prices.",e:"Max batch size, cheap capacity, big discounts.",c:"Hours of latency.",src:"topic 11"},
+{n:"Continuous batching",s:"sched",p:["prefill","decode"],b:["speed","cost"],w:"Every decode step.",f:"Idle GPU slots from static batching.",e:"Finished sequences are swapped out each token step so the GPU stays full.",c:"KV memory becomes the limit.",src:"topic 04"},
+{n:"SLO-aware admission",s:"sched",p:["req"],b:["speed"],w:"Scheduler entry.",f:"Tail latency under overload; KV OOM.",e:"Shed or queue load, reserve KV per admitted seq.",c:"Some requests get 429s.",src:"topic 04"},
+{n:"Autoscaling + warm buffer",s:"sched",p:["req"],b:["speed","cost"],w:"Fleet level.",f:"Cold starts on spikes.",e:"Scale on queue depth, keep warm replicas, stream weights.",c:"Pay for a little idle capacity.",src:"topic 04"},
+{n:"Chunked prefill",s:"prefill",p:["prefill"],b:["speed"],w:"Prefill phase.",f:"Long prompt freezing in-flight decodes (TPOT spikes).",e:"Splits prefill into chunks interleaved with decode steps.",c:"Chunk size is a throughput vs latency knob.",src:"topic 04"},
+{n:"Prefix caching",s:"prefill",p:["prefill"],b:["vram","speed"],w:"Prefill phase.",f:"Recomputing shared system prompts.",e:"One shared KV copy for common prefixes; skips that prefill work.",c:"Only helps when prefixes repeat.",src:"topic 04, topic 11"},
+{n:"Disaggregated prefill / decode",s:"prefill",p:["prefill","decode"],b:["speed"],w:"Fleet architecture.",f:"Prefill and decode fighting on one GPU.",e:"Separate pools: compute-heavy prefill, bandwidth-heavy decode, KV handed off.",c:"KV transfer needs a fast interconnect.",src:"topic 04"},
+{n:"KV cache (vs recompute)",s:"kv",p:["decode"],b:["speed"],w:"Decode phase.",f:"Re-running attention over the whole sequence every token.",e:"Store past K/V so each new token only computes itself.",c:"Costs VRAM that grows with context and batch.",src:"ch04/03_kv-cache"},
+{n:"Paged attention",s:"kv",p:["decode"],b:["vram","speed"],w:"KV memory manager.",f:"Fragmentation from reserving max length.",e:"Allocates KV in small blocks on demand, so waste nearly vanishes and batch grows.",c:"Needs paged kernels (vLLM).",src:"topic 04"},
+{n:"KV offload to CPU / NVMe",s:"kv",p:["decode"],b:["vram"],w:"Paused or idle sessions.",f:"KV exceeds GPU memory.",e:"Moves cold KV off-GPU, brings it back on resume.",c:"Transfer latency; risky on the hot path.",src:"topic 04"},
+{n:"Recompute instead of store",s:"kv",p:["prefill"],b:["vram"],w:"Evicted sequences.",f:"KV memory pressure.",e:"Drop the cache and re-prefill on resume.",c:"Costs compute.",src:"topic 04"},
+{n:"Speculative decoding",s:"decode",p:["decode"],b:["speed"],w:"Decode phase.",f:"One token per full weight read.",e:"Draft proposes k tokens, target verifies in one pass; same output distribution.",c:"Gains fade at large batch or with low acceptance.",src:"topic 04"},
+{n:"Tensor parallelism",s:"out",p:["prefill","decode"],b:["vram","speed"],w:"Inside a node.",f:"Model doesn't fit; single-request latency.",e:"Splits each layer across GPUs; per-GPU weights and KV divide by N.",c:"All-reduce every layer needs NVLink.",src:"topic 04"},
+{n:"Pipeline parallelism",s:"out",p:["prefill","decode"],b:["vram"],w:"Across nodes.",f:"Out of GPUs in one node.",e:"Splits layers into stages.",c:"Pipeline bubble hurts single-request latency.",src:"topic 04"},
+{n:"Expert parallelism",s:"out",p:["prefill","decode"],b:["vram"],w:"MoE serving.",f:"Experts don't fit per GPU.",e:"Shards experts, routes tokens all-to-all.",c:"Load imbalance, all-to-all traffic.",src:"topic 04"},
+{n:"Replication",s:"out",p:["decode"],b:["speed"],w:"Once one copy fits.",f:"Throughput.",e:"Run more independent copies.",c:"Linear GPU spend.",src:"topic 04"}
+];
+const LANE={arch:"train",train:"train",comp:"train",gate:"train",gw:"req",cache:"req",route:"req",sched:"req"};
+const BC={speed:["var(--bg-success)","var(--text-success)"],vram:["var(--bg-accent)","var(--text-accent)"],cost:["var(--bg-warning)","var(--text-warning)"]};
+const chipsEl=document.getElementById('chips'),det=document.getElementById('detail');
+T.forEach((t,i)=>{const b=document.createElement('button');b.className='chip';b.textContent=t.n;b.dataset.i=i;b.onclick=()=>show(i,b);chipsEl.appendChild(b);});
+function match(t,f){if(f==='all')return true;if(f.startsWith('s:'))return t.s===f.slice(2);if(f==='train')return LANE[t.s]==='train';if(f==='req')return LANE[t.s]==='req';if(f==='vram')return t.b.includes('vram');return t.p.includes(f);}
+function stageOn(s,f){if(f==='all')return true;if(f.startsWith('s:'))return s===f.slice(2);return T.some(t=>t.s===s&&match(t,f));}
+function apply(f){document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('dim',!match(T[c.dataset.i],f)));document.querySelectorAll('.stg').forEach(g=>g.classList.toggle('dim',!stageOn(g.dataset.s,f)));document.querySelectorAll('.fbtn').forEach(b=>b.classList.toggle('on',b.dataset.f===f));}
+document.querySelectorAll('.fbtn').forEach(b=>b.onclick=()=>apply(b.dataset.f));
+document.querySelectorAll('.stg').forEach(g=>g.onclick=()=>apply('s:'+g.dataset.s));
+function show(i,el){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');const t=T[i];
+det.innerHTML='<div style="font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:4px">'+t.n+' '+t.b.map(x=>'<span class="tag" style="background:'+BC[x][0]+';color:'+BC[x][1]+'">'+x+'</span>').join('')+'</div><div><span style="color:var(--text-primary)">Where:</span> '+t.w+'</div><div><span style="color:var(--text-primary)">Fixes:</span> '+t.f+'</div><div><span style="color:var(--text-primary)">How:</span> '+t.e+'</div><div><span style="color:var(--text-primary)">Cost:</span> '+t.c+'</div><div style="color:var(--text-muted);margin-top:2px">Source: '+t.src+'</div>';}
+if(matchMedia('(prefers-reduced-motion: reduce)').matches){document.getElementById('dots').remove();}
+const $=id=>document.getElementById(id);
+const P=8e9,L=32,BW=3.35e12,CAP=80,GB=1e9;
+function fmt(b){return b>=1e6?(b/1e6).toFixed(2)+' MB':Math.round(b/1024)+' KB';}
+function calc(){
+const ctx=Math.pow(2,+$('ctx').value),B=+$('bs').value,tp=+$('tp').value;
+$('ctxo').textContent=(ctx/1024)+'k';$('bso').textContent=B;
+const att=$('att').value,wb=+$('wq').value,kb=+$('kq').value;
+const per={mha:2*32*128,gqa:2*8*128,mla:576}[att];
+const kvTok=L*per*kb;
+let eff=ctx;if($('swa').checked)eff=ctx*((5*Math.min(ctx,1024)/ctx)+1)/6;
+let toks=B*eff;if($('pfx').checked)toks=B*eff*0.75+eff*0.25;
+const kvOn=$('kvc').checked;
+let kv=kvOn?toks*kvTok:0;let onGpu=kv;if($('off').checked)onGpu=kv*0.5;
+const waste=kvOn?($('pg').checked?onGpu*0.04:onGpu*1.5):0;
+const w=P*wb/tp,k=onGpu/tp,fr=waste/tp,a=2*GB+(kvOn?0:B*ctx*4096*2*4/tp);
+const tot=w+k+fr+a,tg=tot/GB;
+const scale=Math.max(CAP*1.15,tg*1.05);
+$('sw').style.width=(w/GB/scale*100)+'%';$('sk').style.width=(k/GB/scale*100)+'%';$('sf').style.width=(fr/GB/scale*100)+'%';$('sa').style.width=(a/GB/scale*100)+'%';$('cap').style.left=(CAP/scale*100)+'%';
+$('mv').textContent=tg.toFixed(1)+' GB';const fit=tg<=CAP;$('mfit').innerHTML=fit?'<span style="color:var(--text-success)">Fits</span>':'<span style="color:var(--text-danger)">Out of memory</span>';
+$('mkv').textContent=fmt(kvTok);
+let step;
+if(kvOn){step=(w+k)/(BW*(tp>1?0.85:1));}else{step=Math.max(w/BW,2*P*B*ctx/(990e12*0.5*tp));}
+let mult=1;if($('spec').checked)mult=B<=4?2.5:B<=16?1.6:1.1;
+const tps=mult/step;
+$('mt').textContent=fit?Math.round(tps)+' tok/s':'—';$('mtt').textContent=fit?Math.round(tps*B).toLocaleString()+' tok/s':'—';
+let n=[];
+if(!kvOn)n.push('Without a KV cache every new token re-runs attention over all '+ctx+' tokens, so decode turns compute-bound and slow.');
+else n.push('Decode reads all weights plus the live KV each step: '+(w/GB).toFixed(1)+' GB weights + '+(k/GB).toFixed(1)+' GB KV per GPU. That byte count, not FLOPs, sets the speed.');
+if(kvOn&&!$('pg').checked)n.push('No paging: max-length reservation wastes about 60% of KV memory.');
+if($('off').checked)n.push('Offload adds PCIe latency when an idle session resumes.');
+if($('spec').checked&&B>16)n.push('At large batch, speculative decoding gains little.');
+$('note').textContent=n.join(' ');
+}
+['ctx','bs','att','wq','kq','tp','kvc','pg','swa','pfx','off','spec'].forEach(id=>{$(id).addEventListener('input',calc);$(id).addEventListener('change',calc);});
+$('all').onclick=()=>{$('att').value='gqa';$('wq').value='0.516';$('kq').value='1';$('kvc').checked=true;$('pg').checked=true;$('swa').checked=true;$('pfx').checked=true;$('spec').checked=true;calc();};
+$('rst').onclick=()=>{$('att').value='mha';$('wq').value='2';$('kq').value='2';$('tp').value='1';['pg','swa','pfx','off','spec'].forEach(i=>$(i).checked=false);$('kvc').checked=true;calc();};
+calc();
+</script>
+</body>
+</html>

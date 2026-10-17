@@ -175,10 +175,10 @@ const learningDocs = [
     href: "/notes/llm-speed-memory.html",
   },
   {
-    title: "How a LangGraph run works",
+    title: "Agent Harness",
     tags: ["LangGraph", "agents", "interactive"],
     summary:
-      "An interactive walkthrough of an agent run, from loading state and routing tools to checkpoints, memory, and streaming.",
+      "An interactive walkthrough of a LangGraph run and the architecture around a production agent harness.",
     href: "/learning/docs/langgraph-run-flow.html",
   },
 ];

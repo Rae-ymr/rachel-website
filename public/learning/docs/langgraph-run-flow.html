@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>How a LangGraph run works</title>
+<title>Agent Harness</title>
 <style>
 :root{
   --bg:#FFFFFF;--surface:#F6F5F1;--code-bg:#FFFFFF;--border:#DCDAD2;--border-strong:#B4B2A9;--line:#8A8880;
@@ -27,16 +27,21 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--text);font-family:"Inter",system-ui,-apple-system,"Segoe UI","Helvetica Neue","Liberation Sans",Arial,sans-serif;line-height:1.6}
 main{max-width:760px;margin:0 auto;padding:28px 20px 40px}
+.architecture-embed{position:relative;left:50%;transform:translateX(-50%);display:block;width:min(1200px,calc(100vw - 40px));height:clamp(817px,calc((100vw - 40px)*.90834),1090px);margin-top:28px;border:0;border-radius:12px;background:var(--bg)}
 h1{font-size:24px;font-weight:600;margin:0 0 4px;letter-spacing:-0.01em}
 .lede{margin:0 0 18px;color:var(--text-2);font-size:15px}
 svg{display:block;width:100%;height:auto}
+.nd{cursor:pointer}
 .nd rect{fill:var(--surface);stroke:var(--border-strong);stroke-width:.75;transition:fill .3s,stroke .3s}
+.nd:hover rect,.nd:focus-visible rect{stroke:var(--accent-border);stroke-width:1.5}
+.nd:focus{outline:none}
 .nd.on rect{fill:var(--accent-bg);stroke:var(--accent-border);stroke-width:1.5}
 .tt{font-size:14px;font-weight:600;fill:var(--text)}
 .st{font-size:12px;fill:var(--text-2)}
 .nd.on .tt,.nd.on .st{fill:var(--accent-text)}
 .ln{stroke:var(--line);stroke-width:1;fill:none;transition:stroke .3s}
 .ln.on{stroke:var(--accent-border);stroke-width:2}
+.diagram-hint{margin:6px 0 0;color:var(--text-2);font-size:13px}
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 button{font:inherit;font-size:14px;color:var(--text);background:transparent;border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;cursor:pointer}
 button:hover{background:var(--surface)}
@@ -52,10 +57,10 @@ button:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
 </head>
 <body>
 <main>
-<h1>How a LangGraph run works</h1>
-<p class="lede">Every key idea from Intro to LangGraph, modules 1 to 6, traced through a single agent run.</p>
+<h1>Agent Harness</h1>
+<p class="lede">An interactive walkthrough of a LangGraph run and the architecture around a production agent harness.</p>
 
-<svg viewBox="0 0 680 410" role="img" aria-labelledby="svgt svgd">
+<svg viewBox="0 0 680 410" role="group" aria-labelledby="svgt svgd">
 <title id="svgt">LangGraph run flow</title>
 <desc id="svgd">An animated walk through one agent run: client request, load state, agent node, router, human review, tools, reducer merge, the ReAct loop, writing memory, returning the result, time travel, and streaming.</desc>
 <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
@@ -86,6 +91,7 @@ button:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
 <circle id="dot" r="6" cx="0" cy="0" style="fill:var(--dot);opacity:0"/>
 </svg>
 
+<p class="diagram-hint">Click any node to jump to its explanation, or use the controls to step through the run.</p>
 <div class="controls">
   <button id="prev" type="button">Previous</button>
   <button id="play" type="button">Pause</button>
@@ -101,6 +107,13 @@ button:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
     <li>If the user double-texts, a strategy applies: reject, enqueue, interrupt, or rollback</li>
   </ul>
 </section>
+
+<iframe
+  class="architecture-embed"
+  src="/learning/docs/agent-harness-architecture-detailed.html"
+  title="Agent harness reference architecture, in detail"
+  loading="lazy"
+></iframe>
 </main>
 
 <script>
@@ -124,9 +137,24 @@ var dot=document.getElementById('dot');
 function fmt(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/`([^`]+)`/g,'<code>$1</code>')}
 function placeDot(id,k){if(!id){dot.style.opacity=0;return}var p=document.getElementById(id),pt=p.getPointAtLength(p.getTotalLength()*k);dot.setAttribute('cx',pt.x);dot.setAttribute('cy',pt.y);dot.style.opacity=1}
 function anim(id){cancelAnimationFrame(raf);if(!id||reduceMotion){placeDot(id,1);return}var t0=performance.now();(function f(now){var k=Math.min(1,(now-t0)/800);placeDot(id,k);if(k<1)raf=requestAnimationFrame(f)})(t0)}
-function paint(){var s=S[i];document.querySelectorAll('.nd').forEach(function(g){g.classList.remove('on')});document.querySelectorAll('.ln').forEach(function(l){l.classList.remove('on')});document.getElementById('n-'+s.n).classList.add('on');if(s.e)document.getElementById(s.e).classList.add('on');document.getElementById('bd').textContent=s.m;document.getElementById('ttl').textContent=s.t;document.getElementById('pts').innerHTML=s.p.map(function(x){return '<li>'+fmt(x)+'</li>'}).join('');document.getElementById('cnt').textContent=(i+1)+' / '+S.length}
+function paint(){var s=S[i];document.querySelectorAll('svg .nd').forEach(function(g){g.classList.remove('on');if(g.id==='n-'+s.n)g.setAttribute('aria-current','step');else g.removeAttribute('aria-current')});document.querySelectorAll('.ln').forEach(function(l){l.classList.remove('on')});document.getElementById('n-'+s.n).classList.add('on');if(s.e)document.getElementById(s.e).classList.add('on');document.getElementById('bd').textContent=s.m;document.getElementById('ttl').textContent=s.t;document.getElementById('pts').innerHTML=s.p.map(function(x){return '<li>'+fmt(x)+'</li>'}).join('');document.getElementById('cnt').textContent=(i+1)+' / '+S.length}
 function render(){paint();anim(S[i].e)}
 function go(d){i=(i+d+S.length)%S.length;render()}
+function chooseNode(g){
+  var key=g.id.slice(2),target=S.findIndex(function(s){return s.n===key});
+  if(target<0)return;
+  if(S[i].n===key)target=i;
+  playing=false;clearInterval(timer);document.getElementById('play').textContent='Play';
+  i=target;render();
+}
+document.querySelectorAll('svg .nd').forEach(function(g){
+  var title=g.querySelector('.tt'),subtitle=g.querySelector('.st');
+  g.setAttribute('role','button');g.setAttribute('tabindex','0');
+  var label=[title&&title.textContent,subtitle&&subtitle.textContent].filter(Boolean).join(' · ');
+  g.setAttribute('aria-label',label||g.textContent.trim());
+  g.addEventListener('click',function(){chooseNode(g)});
+  g.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();chooseNode(g)}});
+});
 function start(){clearInterval(timer);timer=setInterval(function(){go(1)},4200)}
 document.getElementById('next').addEventListener('click',function(){go(1);if(playing)start()});
 document.getElementById('prev').addEventListener('click',function(){go(-1);if(playing)start()});

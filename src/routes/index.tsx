@@ -534,6 +534,7 @@ function Index() {
                   "#toolkit",
                 ],
                 ["06", "Education", "Academic background", "#education"],
+                ["07", "Learning", "Notes and visual guides", "#learning"],
               ].map(([number, label, description, href]) => (
                 <a href={href} onClick={closeIndex} key={href}>
                   <span className="index-number">{number}</span>
@@ -809,6 +810,30 @@ function Index() {
               </article>
             </div>
           </section>
+
+          <section id="learning">
+            <SectionHeading
+              title="Learning"
+              count={1}
+              description="Interactive guides and notes on the tools and ideas I’m learning."
+            />
+            <div className="entry-list">
+              <article className="entry-card">
+                <h3>
+                  <a
+                    className="project-title-link"
+                    href="/learning/langgraph-run-flow.html"
+                  >
+                    How a LangGraph run works <ArrowUpRight aria-hidden="true" />
+                  </a>
+                </h3>
+                <p>
+                  An interactive walkthrough of an agent run, from loading state
+                  and routing tools to checkpoints, memory, and streaming.
+                </p>
+              </article>
+            </div>
+          </section>
         </div>
       </main>
 
@@ -821,6 +846,7 @@ function Index() {
             <a href="#publications">Publications & Patents</a>
             <a href="#toolkit">Toolkit</a>
             <a href="#education">Education</a>
+            <a href="#learning">Learning</a>
           </nav>
         </div>
         <p className="footer-note">

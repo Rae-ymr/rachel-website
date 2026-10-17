@@ -166,6 +166,23 @@ const publications = [
   },
 ];
 
+const learningDocs = [
+  {
+    title: "Where each LLM speed and memory technique fits",
+    tags: ["LLM inference", "KV cache", "quantization", "interactive"],
+    summary:
+      "An interactive pipeline map of 40+ LLM speed and memory techniques, plus a VRAM and decode-speed lab for an 8B model.",
+    href: "/notes/llm-speed-memory.html",
+  },
+  {
+    title: "How a LangGraph run works",
+    tags: ["LangGraph", "agents", "interactive"],
+    summary:
+      "An interactive walkthrough of an agent run, from loading state and routing tools to checkpoints, memory, and streaming.",
+    href: "/learning/docs/langgraph-run-flow.html",
+  },
+];
+
 const skills = [
   [
     "AI / ML",
@@ -813,25 +830,26 @@ function Index() {
 
           <section id="learning">
             <SectionHeading
-              title="Learning"
-              count={1}
-              description="Interactive guides and notes on the tools and ideas I’m learning."
+              title="Learning docs"
+              count={learningDocs.length}
+              description="Interactive notes I build while learning ML systems."
             />
             <div className="entry-list">
-              <article className="entry-card">
-                <h3>
-                  <a
-                    className="project-title-link"
-                    href="/learning/docs/langgraph-run-flow.html"
-                  >
-                    How a LangGraph run works <ArrowUpRight aria-hidden="true" />
-                  </a>
-                </h3>
-                <p>
-                  An interactive walkthrough of an agent run, from loading state
-                  and routing tools to checkpoints, memory, and streaming.
-                </p>
-              </article>
+              {learningDocs.map((doc) => (
+                <article className="entry-card project-card" key={doc.title}>
+                  <h3>
+                    <a className="project-title-link" href={doc.href}>
+                      {doc.title} <ArrowUpRight aria-hidden="true" />
+                    </a>
+                  </h3>
+                  <div className="tags">
+                    {doc.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <p>{doc.summary}</p>
+                </article>
+              ))}
             </div>
           </section>
         </div>

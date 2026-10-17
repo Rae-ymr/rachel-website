@@ -822,7 +822,7 @@ function Index() {
                 <h3>
                   <a
                     className="project-title-link"
-                    href="/learning/langgraph-run-flow.html"
+                    href="/learning/docs/langgraph-run-flow.html"
                   >
                     How a LangGraph run works <ArrowUpRight aria-hidden="true" />
                   </a>

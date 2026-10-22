@@ -174,6 +174,13 @@ const learningDocs = [
       "An interactive pipeline map of 40+ LLM speed and memory techniques, plus a VRAM and decode-speed lab for an 8B model.",
     href: "/notes/llm-speed-memory.html",
   },
+  {
+    title: "Agent Harness",
+    tags: ["LangGraph", "agents", "interactive"],
+    summary:
+      "An interactive walkthrough of a LangGraph run and the architecture around a production agent harness.",
+    href: "/learning/docs/langgraph-run-flow.html",
+  },
 ];
 
 const skills = [
@@ -855,6 +862,31 @@ function Index() {
               </article>
             </div>
           </section>
+
+          <section id="learning">
+            <SectionHeading
+              title="Learning docs"
+              count={learningDocs.length}
+              description="Interactive notes I build while learning ML systems."
+            />
+            <div className="entry-list">
+              {learningDocs.map((doc) => (
+                <article className="entry-card project-card" key={doc.title}>
+                  <h3>
+                    <a className="project-title-link" href={doc.href}>
+                      {doc.title} <ArrowUpRight aria-hidden="true" />
+                    </a>
+                  </h3>
+                  <div className="tags">
+                    {doc.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <p>{doc.summary}</p>
+                </article>
+              ))}
+            </div>
+          </section>
         </div>
       </main>
 
@@ -868,6 +900,7 @@ function Index() {
             <a href="#learning">Learning docs</a>
             <a href="#toolkit">Toolkit</a>
             <a href="#education">Education</a>
+            <a href="#learning">Learning</a>
           </nav>
         </div>
         <p className="footer-note">

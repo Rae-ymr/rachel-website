@@ -3,177 +3,205 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Agent harness reference architecture, in detail</title>
+<title>Agent harness: memory-aware architecture</title>
 <style>
 :root{
   --bg:#FFFFFF;--surface:#F6F5F1;--code-bg:#FFFFFF;--border:#DCDAD2;--border-strong:#B4B2A9;--line:#8A8880;
-  --text:#2C2C2A;--text-2:#5F5E5A;--accent-bg:#E6F1FB;--accent-border:#185FA5;--accent-text:#0C447C;--dot:#378ADD;
+  --text:#2C2C2A;--text-2:#5F5E5A;--accent-bg:#E6F1FB;--accent-border:#185FA5;--accent-text:#0C447C;--warning:#A15C00;
   color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)
 }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --bg:#1C1C1B;--surface:#262624;--code-bg:#1C1C1B;--border:#3A3936;--border-strong:#55534E;--line:#9C9A92;
-    --text:#ECEAE3;--text-2:#B4B2A9;--accent-bg:#0C2A47;--accent-border:#85B7EB;--accent-text:#B5D4F4;--dot:#85B7EB;
-    color-scheme:dark
-  }
-}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1C1C1B;--surface:#262624;--code-bg:#1C1C1B;--border:#3A3936;--border-strong:#55534E;--line:#9C9A92;
+  --text:#ECEAE3;--text-2:#B4B2A9;--accent-bg:#0C2A47;--accent-border:#85B7EB;--accent-text:#B5D4F4;--warning:#FAC775;color-scheme:dark
+}}
 :root[data-theme="dark"]{
   --bg:#1C1C1B;--surface:#262624;--code-bg:#1C1C1B;--border:#3A3936;--border-strong:#55534E;--line:#9C9A92;
-  --text:#ECEAE3;--text-2:#B4B2A9;--accent-bg:#0C2A47;--accent-border:#85B7EB;--accent-text:#B5D4F4;--dot:#85B7EB;color-scheme:dark
+  --text:#ECEAE3;--text-2:#B4B2A9;--accent-bg:#0C2A47;--accent-border:#85B7EB;--accent-text:#B5D4F4;--warning:#FAC775;color-scheme:dark
 }
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--text);display:flex;align-items:flex-start;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;font-family:"Inter",system-ui,-apple-system,"Segoe UI","Helvetica Neue","Liberation Sans",Arial,sans-serif;line-height:1.6}
-#frame{width:1200px;height:1090px;flex:none;transform-origin:top left;position:relative;background:var(--bg)}
-svg{display:block;width:1200px;height:670px;position:absolute;left:0;top:0}
-.box{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+body{margin:0;background:var(--bg);display:flex;align-items:flex-start;justify-content:center;overflow:hidden;font-family:"Inter",system-ui,-apple-system,"Segoe UI","Helvetica Neue","Liberation Sans",Arial,sans-serif}
+#frame{width:1200px;height:1215px;flex:none;transform-origin:top center;position:relative;background:var(--bg)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:24px 24px;opacity:.6;pointer-events:none}
+svg{display:block;width:1200px;height:800px;position:absolute;left:0;top:0}
 .nd{cursor:pointer}
-.nd:hover .box,.nd:hover .cont{stroke:var(--accent-border)}
-.nd:hover .chipr{stroke:var(--accent-border)}
-.chipg.on .chipr{fill:var(--accent-bg);stroke:var(--accent-border);stroke-width:1.6;filter:url(#glow)}
-.chipg.on .ct{fill:var(--accent-text)}
-.ctrl{position:absolute;right:58px;top:690px;display:flex;gap:8px;z-index:2}
-.ctrl button{font:inherit;font-size:14px;color:var(--text);background:transparent;border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;cursor:pointer}
-.ctrl button:hover{background:var(--surface)}
-.ctrl button:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
-.ctrl button.on{border-color:var(--accent-border);color:var(--accent-text)}
+.box{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+.nd:hover .box,.nd:hover .cont,.nd:hover .chipr{stroke:var(--accent-border)}
 .nd.on .box{fill:var(--accent-bg);stroke:var(--accent-border);stroke-width:1.8;filter:url(#glow)}
-.nd.lit .box{stroke:var(--accent-border)}
+.nd.lit .box,.nd.lit .chipr{stroke:var(--accent-border)}
 .cont{fill:transparent;stroke:var(--border-strong);stroke-width:1;stroke-dasharray:4 4}
-.nd.on .cont{stroke:var(--accent-border)}
+.nd.on .cont{stroke:var(--accent-border);stroke-width:1.5}
+.loopf{fill:color-mix(in srgb,var(--accent-bg) 25%,transparent);stroke:var(--border-strong);stroke-width:1.2;stroke-dasharray:6 5}
+.nd.on .loopf{stroke:var(--accent-border);stroke-width:1.8}
 .chipr{fill:var(--surface);stroke:var(--border-strong);stroke-width:.8}
-.nd.on>.chipr{fill:var(--accent-bg);stroke:var(--accent-border)}
-.tt{font-size:15px;font-weight:600;fill:var(--text)}
+.nd.on .chipr{fill:var(--accent-bg);stroke:var(--accent-border);stroke-width:1.6;filter:url(#glow)}
+.mt .box{stroke:var(--border-strong)}
+.mt.on .box{stroke:var(--warning);fill:var(--accent-bg)}
+.det .chipr{stroke:var(--border-strong)}
+.mst .box{fill:var(--surface);stroke:var(--border-strong)}
+.mst.on .box{fill:var(--accent-bg);stroke:var(--accent-border)}
+.mst.lit .box{stroke:var(--accent-border)}
+.tt{font-size:15px;font-weight:700;fill:var(--text)}
+.t13{font-size:13px;font-weight:700;fill:var(--text)}
 .st{font-size:11.5px;fill:var(--text-2);font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace}
 .li{font-size:13px;fill:var(--text)}
+.ct{font-size:12.5px;fill:var(--text)}
 .nd.on .st,.nd.on .li{fill:var(--accent-text)}
-.ct{font-size:12px;fill:var(--text-2)}
+.nd.on .ct{fill:var(--text)}
+.mst .st{fill:var(--text-2)}
+.mt .st{fill:var(--warning)}
 .lab{font-size:12px;fill:var(--text-2)}
 .ln{stroke:var(--line);stroke-width:1.3;fill:none}
 .ln.seen{stroke:var(--accent-border);stroke-width:1.8}
 .ln.on{stroke:var(--accent-border);stroke-width:2.6}
+.ln.mem{stroke:var(--line);stroke-dasharray:5 4}
+.ln.mem.seen{stroke:var(--accent-border)}
+.ln.mem.on{stroke:var(--accent-border);stroke-width:2.6}
 .h1{font-size:30px;font-weight:700;fill:var(--text);letter-spacing:-0.015em}
-.cnt{font-size:18px;fill:var(--accent-text);font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace}
-.grid{position:absolute;inset:0;background-image:linear-gradient(color-mix(in srgb,var(--border) 45%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--border) 45%,transparent) 1px,transparent 1px);background-size:24px 24px;opacity:.5;pointer-events:none}
-#panel{position:absolute;left:40px;right:40px;top:676px;height:392px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;overflow:hidden}
-#panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent-border)}
-.ph{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
-#pnum{font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;font-size:20px;color:var(--accent-text)}
-#pname{font-size:22px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
+.cnt{font-size:18px;fill:var(--accent-border);font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace}
+.lg{font-size:12px;fill:var(--text-2)}
+#panel{position:absolute;left:40px;right:40px;top:806px;height:385px;background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;padding:18px 22px;overflow:hidden}
+#panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--acc,var(--accent-border));box-shadow:0 0 12px var(--acc,var(--accent-border))}
+.ph{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:14px;row-gap:2px;margin-bottom:12px;padding-right:330px}
+#psub{flex-basis:100%}
+.noctrl .ph{padding-right:0}
+#pnum{font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;font-size:20px;color:var(--accent-border)}
+#pname{font-size:23px;font-weight:700;color:var(--text);letter-spacing:-0.01em}
 #psub{font-size:15px;color:var(--text-2)}
+#ptag{font-size:12px;border:1px solid var(--acc,var(--accent-border));color:var(--acc,var(--accent-border));border-radius:999px;padding:1px 9px;white-space:nowrap}
 .cols{display:grid;grid-template-columns:1.05fr 1fr 1.15fr;gap:22px}
-.col h4{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--accent-text)}
+.col h4{margin:0 0 8px;font-size:14px;font-weight:700;color:var(--accent-border)}
 .col ol,.col ul{margin:0;padding-left:20px;font-size:14px;line-height:1.5;color:var(--text)}
 .col li{margin-bottom:5px}
 .col li::marker{color:var(--accent-border)}
-.rk{color:#A15C00}
-.col code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;font-size:12.5px;color:var(--accent-text);background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:0 4px}
-#hint{position:absolute;left:62px;top:652px;font-size:13px;color:var(--text-2)}
+.rk{color:var(--warning)}
+.ctrl{position:absolute;right:58px;top:820px;display:flex;gap:8px;z-index:2}
+.ctrl button{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:5px 11px;cursor:pointer}
+.ctrl button:hover{border-color:var(--accent-border)}
+.ctrl button:focus-visible{outline:2px solid var(--accent-border);outline-offset:2px}
+.ctrl button.on{border-color:var(--accent-border);color:var(--accent-border)}
 </style>
 </head>
 <body>
 <div id="frame">
 <div class="grid"></div>
-<svg viewBox="0 0 1200 670" role="img" aria-labelledby="t d">
-<title id="t">Agent harness reference architecture</title>
-<desc id="d">A framework-agnostic agent harness architecture. Each component is highlighted in turn, and a panel below explains how it works, the design choices, and the main risks with their defenses.</desc>
+<svg viewBox="0 0 1200 800" role="img" aria-labelledby="t d">
+<title id="t">Memory-aware agent harness</title>
+<desc id="d">A reference agent harness merged with a memory-aware agent design: memory is read before the agent loop, managed and offloaded inside it, and written after it, through a memory manager over typed memory stores.</desc>
 <defs>
 <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <filter id="cglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
 </defs>
 
-<rect x="40" y="26" width="132" height="32" rx="16" fill="none" stroke="var(--accent-border)" stroke-width="1.5"/>
-<text x="106" y="42" text-anchor="middle" dominant-baseline="central" style="font-size:15px;font-weight:600;fill:var(--accent-text)">Agent harness</text>
-<text class="h1" x="190" y="42" dominant-baseline="central">A reference architecture, in detail</text>
-<text class="cnt" id="cnt" x="1160" y="42" text-anchor="end" dominant-baseline="central">01 / 14</text>
+<rect x="40" y="24" width="132" height="32" rx="16" fill="none" stroke="var(--accent-border)" stroke-width="1.5"/>
+<text x="106" y="40" text-anchor="middle" dominant-baseline="central" style="font-size:15px;font-weight:600;fill:var(--accent-border)">Agent harness</text>
+<text class="h1" x="190" y="40" dominant-baseline="central">The memory-aware agent, end to end</text>
+<text class="cnt" id="cnt" x="1160" y="40" text-anchor="end" dominant-baseline="central"></text>
+
+<g>
+<line x1="40" y1="78" x2="66" y2="78" stroke="var(--accent-border)" stroke-width="2"/><text class="lg" x="72" y="78" dominant-baseline="central">control flow</text>
+<line x1="170" y1="78" x2="196" y2="78" stroke="var(--accent-border)" stroke-width="2" stroke-dasharray="5 4"/><text class="lg" x="202" y="78" dominant-baseline="central">memory read / write</text>
+<rect x="340" y="71" width="14" height="14" rx="3" fill="var(--surface)" stroke="var(--border-strong)"/><text class="lg" x="360" y="78" dominant-baseline="central">harness-run (deterministic)</text>
+<rect x="540" y="71" width="14" height="14" rx="3" fill="var(--surface)" stroke="var(--warning)"/><text class="lg" x="560" y="78" dominant-baseline="central">agent-triggered</text>
+<rect x="680" y="71" width="14" height="14" rx="3" fill="var(--surface)" stroke="var(--accent-border)"/><text class="lg" x="700" y="78" dominant-baseline="central">memory store (database table)</text>
+</g>
 
 <g id="edges">
-<path id="e1" class="ln" d="M240 145 L288 145" marker-end="url(#ah)"/>
-<path id="e2" class="ln" d="M380 190 L380 228" marker-end="url(#ah)"/>
-<path id="e3" class="ln" d="M470 275 L508 275" marker-end="url(#ah)"/>
-<path id="e4" class="ln" d="M690 275 L728 275" marker-end="url(#ah)"/>
-<path id="e5" class="ln" d="M825 320 L825 343" marker-end="url(#ah)"/>
-<path id="e6" class="ln" d="M770 460 L770 488" marker-end="url(#ah)"/>
-<path id="e7" class="ln" d="M620 535 L592 535" marker-end="url(#ah)"/>
-<path id="e8" class="ln" d="M290 535 L265 535 L265 275 L288 275" marker-end="url(#ah)"/>
-<path id="e9" class="ln" d="M920 275 L958 275" marker-end="url(#ah)"/>
-<path id="e10" class="ln" d="M1060 330 L1060 348" marker-end="url(#ah)"/>
-<path id="e11" class="ln" d="M1160 465 L1180 465 L1180 85 L605 85 L605 98" stroke-dasharray="4 4" marker-end="url(#ah)"/>
+<path id="eIn" class="ln" d="M220 165 L248 165" marker-end="url(#ah)"/>
+<path id="eRead" class="ln mem" d="M900 165 L872 165" marker-end="url(#ah)"/>
+<path id="eCM" class="ln" d="M360 230 L360 283" marker-end="url(#ah)"/>
+<path id="eMC" class="ln" d="M445 320 L468 320" marker-end="url(#ah)"/>
+<path id="eCG" class="ln" d="M640 320 L663 320" marker-end="url(#ah)"/>
+<path id="eGA" class="ln" d="M755 355 L755 368" marker-end="url(#ah)"/>
+<path id="eAC" class="ln" d="M560 465 L560 476" marker-end="url(#ah)"/>
+<path id="eMemTool" class="ln mem" d="M832 426 L898 426" marker-end="url(#ah)"/>
+<path id="eOff" class="ln mem" d="M845 503 L898 503" marker-end="url(#ah)"/>
+<path id="eLoop" class="ln" d="M275 503 L262 503 L262 320 L273 320" marker-end="url(#ah)"/>
+<path id="eStop" class="ln" d="M560 540 L560 558" marker-end="url(#ah)"/>
+<path id="eWrite" class="ln mem" d="M870 595 L898 595" marker-end="url(#ah)"/>
+<path id="eOut" class="ln" d="M400 630 L400 648" marker-end="url(#ah)"/>
+<path id="eObs" class="ln" d="M550 682 L568 682" marker-end="url(#ah)"/>
 </g>
-<path id="flow" d="" fill="none" stroke="var(--accent-border)" stroke-width="2" stroke-dasharray="6 10" stroke-linecap="round" filter="url(#cglow)" opacity="0"/>
+<path id="flow" d="" fill="none" stroke="var(--accent-text)" stroke-width="2" stroke-dasharray="6 10" stroke-linecap="round" filter="url(#cglow)" opacity="0"/>
 <rect id="pulse" rx="10" fill="none" stroke="var(--accent-border)" stroke-width="2" opacity="0"/>
 
-<g id="n-entry" class="nd" data-b="40,100,200,480">
-<rect class="box" x="40" y="100" width="200" height="480" rx="10"/>
-<text class="tt" x="60" y="128" dominant-baseline="central">Entry points</text>
-<text class="st" x="60" y="148" dominant-baseline="central">where work comes from</text>
-<text class="li" x="60" y="196" dominant-baseline="central">Users and chat</text>
-<text class="li" x="60" y="232" dominant-baseline="central">API and SDK calls</text>
-<text class="li" x="60" y="268" dominant-baseline="central">Channels</text>
-<text class="st" x="60" y="286" dominant-baseline="central">Slack, email, web</text>
-<text class="li" x="60" y="322" dominant-baseline="central">Schedules, triggers</text>
-<text class="li" x="60" y="358" dominant-baseline="central">Other agents</text>
-<text class="st" x="60" y="376" dominant-baseline="central">A2A, agent protocols</text>
-<text class="li" x="60" y="412" dominant-baseline="central">Events and webhooks</text>
-<text class="st" x="60" y="470" dominant-baseline="central">auth, identity</text>
-<text class="st" x="60" y="488" dominant-baseline="central">user and session ids</text>
-<text class="st" x="60" y="506" dominant-baseline="central">rate limits</text>
+<g id="n-entry" class="nd" data-b="40,100,180,615">
+<rect class="box" x="40" y="100" width="180" height="615" rx="10"/>
+<text class="tt" x="58" y="126" dominant-baseline="central">Entry points</text>
+<text class="st" x="58" y="146" dominant-baseline="central">start condition</text>
+<text class="li" x="58" y="194" dominant-baseline="central">User query</text>
+<text class="st" x="58" y="212" dominant-baseline="central">+ thread id</text>
+<text class="li" x="58" y="250" dominant-baseline="central">API and SDK calls</text>
+<text class="li" x="58" y="286" dominant-baseline="central">Channels</text>
+<text class="st" x="58" y="304" dominant-baseline="central">Slack, email, web</text>
+<text class="li" x="58" y="342" dominant-baseline="central">Schedules, triggers</text>
+<text class="li" x="58" y="378" dominant-baseline="central">Other agents</text>
+<text class="li" x="58" y="414" dominant-baseline="central">Events, webhooks</text>
+<text class="st" x="58" y="640" dominant-baseline="central">auth, identity</text>
+<text class="st" x="58" y="658" dominant-baseline="central">user and thread ids</text>
+<text class="st" x="58" y="676" dominant-baseline="central">rate limits</text>
 </g>
 
-<g id="n-ctx" class="nd" data-b="290,100,630,90">
-<rect class="box" x="290" y="100" width="630" height="90" rx="10"/>
-<text class="tt" x="305" y="120" dominant-baseline="central">Context assembly</text>
-<text class="st" x="460" y="120" dominant-baseline="central">what the model sees this turn</text>
+<g id="n-ctx" class="nd" data-b="250,100,620,130">
+<rect class="box" x="250" y="100" width="620" height="130" rx="10"/>
+<text class="tt" x="265" y="120" dominant-baseline="central">Context assembly</text>
+<text class="st" x="420" y="120" dominant-baseline="central">before the loop · a memory-aware context window</text>
 </g>
-<g id="n-instr" class="nd chipg" data-b="305,140,112,36"><rect class="chipr" x="305" y="140" width="112" height="36" rx="6"/><text class="ct" x="361" y="158" text-anchor="middle" dominant-baseline="central">Instructions</text></g>
-<g id="n-mem" class="nd chipg" data-b="427,140,112,36"><rect class="chipr" x="427" y="140" width="112" height="36" rx="6"/><text class="ct" x="483" y="158" text-anchor="middle" dominant-baseline="central">Memory recall</text></g>
-<g id="n-skills" class="nd chipg" data-b="549,140,112,36"><rect class="chipr" x="549" y="140" width="112" height="36" rx="6"/><text class="ct" x="605" y="158" text-anchor="middle" dominant-baseline="central">Skills</text></g>
-<g id="n-toolspec" class="nd chipg" data-b="671,140,112,36"><rect class="chipr" x="671" y="140" width="112" height="36" rx="6"/><text class="ct" x="727" y="158" text-anchor="middle" dominant-baseline="central">Tool specs</text></g>
-<g id="n-hist" class="nd chipg" data-b="793,140,112,36"><rect class="chipr" x="793" y="140" width="112" height="36" rx="6"/><text class="ct" x="849" y="158" text-anchor="middle" dominant-baseline="central">History</text></g>
+<g id="n-sysprompt" class="nd chipg" data-b="265,140,141,32"><rect class="chipr" x="265" y="140" width="141" height="32" rx="6"/><text class="ct" x="335.5" y="156" text-anchor="middle" dominant-baseline="central">System prompt</text></g>
+<g id="n-c-conv" class="nd chipg" data-b="416,140,141,32" data-k="conv"><rect class="chipr" x="416" y="140" width="141" height="32" rx="6"/><text class="ct" x="486.5" y="156" text-anchor="middle" dominant-baseline="central">## Conversation</text></g>
+<g id="n-c-kb" class="nd chipg" data-b="567,140,141,32" data-k="kb"><rect class="chipr" x="567" y="140" width="141" height="32" rx="6"/><text class="ct" x="637.5" y="156" text-anchor="middle" dominant-baseline="central">## Knowledge base</text></g>
+<g id="n-c-wf" class="nd chipg" data-b="718,140,141,32" data-k="wf"><rect class="chipr" x="718" y="140" width="141" height="32" rx="6"/><text class="ct" x="788.5" y="156" text-anchor="middle" dominant-baseline="central">## Workflow</text></g>
+<g id="n-c-ent" class="nd chipg" data-b="265,184,141,32" data-k="ent"><rect class="chipr" x="265" y="184" width="141" height="32" rx="6"/><text class="ct" x="335.5" y="200" text-anchor="middle" dominant-baseline="central">## Entity</text></g>
+<g id="n-c-sum" class="nd chipg" data-b="416,184,141,32" data-k="sum"><rect class="chipr" x="416" y="184" width="141" height="32" rx="6"/><text class="ct" x="486.5" y="200" text-anchor="middle" dominant-baseline="central">## Summary</text></g>
+<g id="n-toolret" class="nd chipg det" data-b="567,184,141,32"><rect class="chipr" x="567" y="184" width="141" height="32" rx="6"/><text class="ct" x="637.5" y="200" text-anchor="middle" dominant-baseline="central">Tool retrieval</text></g>
+<g id="n-check" class="nd chipg det" data-b="718,184,141,32"><rect class="chipr" x="718" y="184" width="141" height="32" rx="6"/><text class="ct" x="788.5" y="200" text-anchor="middle" dominant-baseline="central">80% check</text></g>
 
-<g id="n-model" class="nd" data-b="290,230,180,90"><rect class="box" x="290" y="230" width="180" height="90" rx="10"/><text class="tt" x="380" y="262" text-anchor="middle" dominant-baseline="central">Model</text><text class="st" x="380" y="284" text-anchor="middle" dominant-baseline="central">reason · choose</text><text class="st" x="380" y="300" text-anchor="middle" dominant-baseline="central">swappable</text></g>
-<g id="n-ctrl" class="nd" data-b="510,230,180,90"><rect class="box" x="510" y="230" width="180" height="90" rx="10"/><text class="tt" x="600" y="262" text-anchor="middle" dominant-baseline="central">Loop controller</text><text class="st" x="600" y="284" text-anchor="middle" dominant-baseline="central">plan · track · stop</text><text class="st" x="600" y="300" text-anchor="middle" dominant-baseline="central">retry · budgets</text></g>
-<g id="n-guard" class="nd" data-b="730,230,190,90"><rect class="box" x="730" y="230" width="190" height="90" rx="10"/><text class="tt" x="825" y="262" text-anchor="middle" dominant-baseline="central">Guardrails</text><text class="st" x="825" y="284" text-anchor="middle" dominant-baseline="central">input · action · output</text><text class="st" x="825" y="300" text-anchor="middle" dominant-baseline="central">policy · approval</text></g>
+<g id="n-loop" class="nd" data-b="250,250,620,290"><rect class="loopf" x="250" y="250" width="620" height="290" rx="12"/><text class="lab" x="265" y="267" dominant-baseline="central">Agent loop · assemble → invoke → act, until a stop condition</text></g>
+<g id="n-model" class="nd" data-b="275,285,170,70"><rect class="box" x="275" y="285" width="170" height="70" rx="10"/><text class="tt" x="360" y="308" text-anchor="middle" dominant-baseline="central">Model</text><text class="st" x="360" y="330" text-anchor="middle" dominant-baseline="central">reason · choose</text></g>
+<g id="n-ctrl" class="nd" data-b="470,285,170,70"><rect class="box" x="470" y="285" width="170" height="70" rx="10"/><text class="tt" x="555" y="308" text-anchor="middle" dominant-baseline="central">Loop controller</text><text class="st" x="555" y="330" text-anchor="middle" dominant-baseline="central">max iterations · stop</text></g>
+<g id="n-guard" class="nd" data-b="665,285,180,70"><rect class="box" x="665" y="285" width="180" height="70" rx="10"/><text class="tt" x="755" y="308" text-anchor="middle" dominant-baseline="central">Guardrails</text><text class="st" x="755" y="330" text-anchor="middle" dominant-baseline="central">input · action · output</text></g>
 
-<g id="n-act" class="nd" data-b="290,345,630,115"><rect class="cont" x="290" y="345" width="630" height="115" rx="10"/><text class="lab" x="305" y="362" dominant-baseline="central">Action layer</text></g>
-<g id="n-tools" class="nd" data-b="305,378,141,66"><rect class="box" x="305" y="378" width="141" height="66" rx="8"/><text class="tt" x="375.5" y="402" text-anchor="middle" dominant-baseline="central">Tools, MCP</text><text class="st" x="375.5" y="424" text-anchor="middle" dominant-baseline="central">functions, APIs</text></g>
-<g id="n-code" class="nd" data-b="458,378,141,66"><rect class="box" x="458" y="378" width="141" height="66" rx="8"/><text class="tt" x="528.5" y="402" text-anchor="middle" dominant-baseline="central">Code exec</text><text class="st" x="528.5" y="424" text-anchor="middle" dominant-baseline="central">sandbox, interp.</text></g>
-<g id="n-fs" class="nd" data-b="611,378,141,66"><rect class="box" x="611" y="378" width="141" height="66" rx="8"/><text class="tt" x="681.5" y="402" text-anchor="middle" dominant-baseline="central">Filesystem</text><text class="st" x="681.5" y="424" text-anchor="middle" dominant-baseline="central">workspace</text></g>
-<g id="n-sub" class="nd" data-b="764,378,141,66"><rect class="box" x="764" y="378" width="141" height="66" rx="8"/><text class="tt" x="834.5" y="402" text-anchor="middle" dominant-baseline="central">Sub-agents</text><text class="st" x="834.5" y="424" text-anchor="middle" dominant-baseline="central">sync · async</text></g>
+<g id="n-act" class="nd" data-b="275,370,570,95"><rect class="cont" x="275" y="370" width="570" height="95" rx="10"/><text class="lab" x="289" y="385" dominant-baseline="central">Action layer</text></g>
+<g id="n-tools" class="nd" data-b="285,398,103,57"><rect class="box" x="285" y="398" width="103" height="57" rx="8"/><text class="t13" x="336.5" y="418" text-anchor="middle" dominant-baseline="central">Tools, MCP</text><text class="st" x="336.5" y="438" text-anchor="middle" dominant-baseline="central">functions</text></g>
+<g id="n-code" class="nd" data-b="396,398,103,57"><rect class="box" x="396" y="398" width="103" height="57" rx="8"/><text class="t13" x="447.5" y="418" text-anchor="middle" dominant-baseline="central">Code exec</text><text class="st" x="447.5" y="438" text-anchor="middle" dominant-baseline="central">sandbox</text></g>
+<g id="n-fs" class="nd" data-b="507,398,103,57"><rect class="box" x="507" y="398" width="103" height="57" rx="8"/><text class="t13" x="558.5" y="418" text-anchor="middle" dominant-baseline="central">Filesystem</text><text class="st" x="558.5" y="438" text-anchor="middle" dominant-baseline="central">workspace</text></g>
+<g id="n-sub" class="nd" data-b="618,398,103,57"><rect class="box" x="618" y="398" width="103" height="57" rx="8"/><text class="t13" x="669.5" y="418" text-anchor="middle" dominant-baseline="central">Sub-agents</text><text class="st" x="669.5" y="438" text-anchor="middle" dominant-baseline="central">delegate</text></g>
+<g id="n-memtools" class="nd mt" data-b="729,398,103,57"><rect class="box" x="729" y="398" width="103" height="57" rx="8"/><text class="t13" x="780.5" y="418" text-anchor="middle" dominant-baseline="central">Memory tools</text><text class="st" x="780.5" y="438" text-anchor="middle" dominant-baseline="central">agent calls</text></g>
 
-<g id="n-state" class="nd" data-b="290,490,300,90"><rect class="box" x="290" y="490" width="300" height="90" rx="10"/><text class="tt" x="440" y="516" text-anchor="middle" dominant-baseline="central">State and memory</text><text class="st" x="440" y="540" text-anchor="middle" dominant-baseline="central">checkpoints per session</text><text class="st" x="440" y="558" text-anchor="middle" dominant-baseline="central">long-term store · artifacts</text></g>
-<g id="n-cm" class="nd" data-b="620,490,300,90"><rect class="box" x="620" y="490" width="300" height="90" rx="10"/><text class="tt" x="770" y="516" text-anchor="middle" dominant-baseline="central">Context management</text><text class="st" x="770" y="540" text-anchor="middle" dominant-baseline="central">compress · summarize</text><text class="st" x="770" y="558" text-anchor="middle" dominant-baseline="central">offload · isolate</text></g>
+<g id="n-cm" class="nd" data-b="275,478,570,50"><rect class="box" x="275" y="478" width="570" height="50" rx="10"/><text class="tt" x="292" y="503" dominant-baseline="central">Context management</text><text class="st" x="482" y="503" dominant-baseline="central">offload tool logs · summarize at 80% · trim</text></g>
 
-<g id="n-out" class="nd" data-b="960,100,200,230">
-<rect class="box" x="960" y="100" width="200" height="230" rx="10"/>
-<text class="tt" x="980" y="128" dominant-baseline="central">Outputs</text>
-<text class="st" x="980" y="148" dominant-baseline="central">what the run produces</text>
-<text class="li" x="980" y="192" dominant-baseline="central">Response</text>
-<text class="li" x="980" y="226" dominant-baseline="central">Structured data</text>
-<text class="li" x="980" y="260" dominant-baseline="central">Artifacts, files</text>
-<text class="li" x="980" y="294" dominant-baseline="central">Actions in the world</text>
+<g id="n-post" class="nd" data-b="250,560,620,70"><rect class="box" x="250" y="560" width="620" height="70" rx="10"/><text class="tt" x="268" y="583" dominant-baseline="central">Post-loop memory writes</text><text class="st" x="268" y="607" dominant-baseline="central">workflow: steps and outcome · entities · final answer to conversation</text></g>
+
+<g id="n-out" class="nd" data-b="250,650,300,65"><rect class="box" x="250" y="650" width="300" height="65" rx="10"/><text class="tt" x="268" y="672" dominant-baseline="central">Outputs</text><text class="st" x="268" y="694" dominant-baseline="central">answer · data · artifacts · actions</text></g>
+<g id="n-obs" class="nd" data-b="570,650,300,65"><rect class="box" x="570" y="650" width="300" height="65" rx="10"/><text class="tt" x="588" y="672" dominant-baseline="central">Observe, evaluate</text><text class="st" x="588" y="694" dominant-baseline="central">traces · cost · evals · feedback</text></g>
+
+<g id="n-mm" class="nd" data-b="900,100,260,615">
+<rect class="box" x="900" y="100" width="260" height="615" rx="10"/>
+<text class="tt" x="918" y="124" dominant-baseline="central">Memory manager</text>
+<text class="st" x="918" y="144" dominant-baseline="central">read / write ops over stores</text>
+<text class="st" x="918" y="636" dominant-baseline="central">database tables · embeddings</text>
+<text class="st" x="918" y="654" dominant-baseline="central">semantic search · thread ids</text>
+<text class="st" x="918" y="672" dominant-baseline="central">extract · consolidate · update</text>
 </g>
-<g id="n-obs" class="nd" data-b="960,350,200,230">
-<rect class="box" x="960" y="350" width="200" height="230" rx="10"/>
-<text class="tt" x="980" y="378" dominant-baseline="central">Observe, evaluate</text>
-<text class="st" x="980" y="398" dominant-baseline="central">is it working?</text>
-<text class="li" x="980" y="442" dominant-baseline="central">Traces, logs</text>
-<text class="li" x="980" y="476" dominant-baseline="central">Cost, latency</text>
-<text class="li" x="980" y="510" dominant-baseline="central">Evals, red-teaming</text>
-<text class="li" x="980" y="544" dominant-baseline="central">Human feedback</text>
-</g>
+<g id="n-s-conv" class="nd mst" data-b="915,160,230,44" data-k="conv"><rect class="box" x="915" y="160" width="230" height="44" rx="8"/><text class="t13" x="930" y="176" dominant-baseline="central">Conversational</text><text class="st" x="930" y="193" dominant-baseline="central">messages per thread</text></g>
+<g id="n-s-kb" class="nd mst" data-b="915,214,230,44" data-k="kb"><rect class="box" x="915" y="214" width="230" height="44" rx="8"/><text class="t13" x="930" y="230" dominant-baseline="central">Knowledge base</text><text class="st" x="930" y="247" dominant-baseline="central">semantic · documents</text></g>
+<g id="n-s-wf" class="nd mst" data-b="915,268,230,44" data-k="wf"><rect class="box" x="915" y="268" width="230" height="44" rx="8"/><text class="t13" x="930" y="284" dominant-baseline="central">Workflow</text><text class="st" x="930" y="301" dominant-baseline="central">procedural · steps, outcomes</text></g>
+<g id="n-s-ent" class="nd mst" data-b="915,322,230,44" data-k="ent"><rect class="box" x="915" y="322" width="230" height="44" rx="8"/><text class="t13" x="930" y="338" dominant-baseline="central">Entity</text><text class="st" x="930" y="355" dominant-baseline="central">people, places, orgs</text></g>
+<g id="n-s-sum" class="nd mst" data-b="915,376,230,44" data-k="sum"><rect class="box" x="915" y="376" width="230" height="44" rx="8"/><text class="t13" x="930" y="392" dominant-baseline="central">Summary</text><text class="st" x="930" y="409" dominant-baseline="central">compressed history, by id</text></g>
+<g id="n-s-toolbox" class="nd mst" data-b="915,430,230,44" data-k="toolbox"><rect class="box" x="915" y="430" width="230" height="44" rx="8"/><text class="t13" x="930" y="446" dominant-baseline="central">Toolbox</text><text class="st" x="930" y="463" dominant-baseline="central">semantic tool memory</text></g>
+<g id="n-s-toollog" class="nd mst" data-b="915,484,230,44" data-k="toollog"><rect class="box" x="915" y="484" width="230" height="44" rx="8"/><text class="t13" x="930" y="500" dominant-baseline="central">Tool logs</text><text class="st" x="930" y="517" dominant-baseline="central">offloaded tool outputs</text></g>
+<g id="n-s-ckpt" class="nd mst" data-b="915,538,230,44" data-k="ckpt"><rect class="box" x="915" y="538" width="230" height="44" rx="8"/><text class="t13" x="930" y="554" dominant-baseline="central">Checkpoints</text><text class="st" x="930" y="571" dominant-baseline="central">thread state, resume</text></g>
 
-<g id="n-rt" class="nd" data-b="40,605,1120,44"><rect class="box" x="40" y="605" width="1120" height="44" rx="10"/><text class="tt" x="62" y="627" dominant-baseline="central">Runtime</text><text class="st" x="145" y="627" dominant-baseline="central">durable execution · pause and resume · queues and concurrency · deployment and scaling · identity and secrets</text></g>
+<g id="n-rt" class="nd" data-b="40,735,1120,40"><rect class="box" x="40" y="735" width="1120" height="40" rx="10"/><text class="tt" x="62" y="755" dominant-baseline="central">Runtime</text><text class="st" x="145" y="755" dominant-baseline="central">durable execution · pause and resume · queues and concurrency · deployment and scaling · identity and secrets</text></g>
 
-<g id="comet" filter="url(#cglow)" opacity="0"><circle r="2" fill="var(--accent-border)" opacity=".25"/><circle r="2.8" fill="var(--accent-border)" opacity=".4"/><circle r="3.6" fill="var(--accent-border)" opacity=".6"/><circle r="4.4" fill="var(--accent-border)" opacity=".8"/><circle r="6" fill="var(--bg)"/></g>
+<g id="comet" filter="url(#cglow)" opacity="0"><circle r="2" fill="var(--accent-border)" opacity=".25"/><circle r="2.8" fill="var(--accent-border)" opacity=".4"/><circle r="3.6" fill="var(--accent-border)" opacity=".6"/><circle r="4.4" fill="var(--accent-border)" opacity=".8"/><circle r="6" fill="var(--text)"/></g>
 </svg>
 
-<span id="hint">Click any block, including the small ones, to see how it works</span>
 <div class="ctrl" id="ctrl"><button id="bOverview" type="button">Overview</button><button id="bPrev" type="button">Previous</button><button id="bNext" type="button">Next</button><button id="bPlay" type="button">Play tour</button></div>
 <section id="panel" aria-live="polite">
-<div class="ph"><span id="pnum">01</span><span id="pname">Entry points</span><span id="psub">Where work enters the harness</span></div>
+<div class="ph"><span id="pnum"></span><span id="pname"></span><span id="ptag"></span><span id="psub"></span></div>
 <div class="cols">
 <div class="col"><h4>How it works</h4><ol id="ph"></ol></div>
 <div class="col"><h4>Design choices</h4><ul id="pd"></ul></div>
@@ -184,126 +212,172 @@ svg{display:block;width:1200px;height:670px;position:absolute;left:0;top:0}
 
 <script>
 var D={
-entry:{name:'Entry points',sub:'Where work enters the harness',
- how:['Authenticate the caller and resolve the user, tenant, and session (thread) ids','Normalize the input (text, files, events) into one message format','Attach metadata: channel, locale, permissions, the agent config to use','Route the request to a run, a queue, or a scheduled job'],
- design:['Sync chat vs. async background jobs vs. scheduled runs','What to do when a user sends again mid-run: reject, queue, interrupt, or roll back','Rate limits and quotas per user and per tenant','Mark every external payload as trusted or untrusted at the door'],
- risks:[['Spoofed identity','verify auth at the edge, never trust ids in the message body'],['Floods and abuse','rate limits, quotas, concurrency caps'],['Malicious payloads in emails, webhooks, uploads','tag them as untrusted data before they reach the context']]},
-ctx:{name:'Context assembly',sub:'Build exactly what the model sees this turn',
- how:['Load the system instructions and policies first','Recall memory: fetch the user profile and run a semantic search in the user’s namespace','List skills by name and description; load a skill’s full text only if it’s relevant','Add tool specs, then recent history, trimmed to the token budget'],
- design:['A token budget per section: instructions, memory, skills, tools, history','A stable prefix first, so prompt caching cuts cost and latency','Clearly separate trusted instructions from untrusted data with tags or delimiters','Retrieve the top few relevant items, not everything'],
- risks:[['Context rot from stuffing too much','budgets, top-k retrieval, progressive loading'],['Indirect prompt injection hidden in documents or web pages','wrap retrieved content as data, never as instructions'],['Stale or wrong memories','timestamps, recency weighting, source tracking']]},
-model:{name:'Model',sub:'Reason over the context and choose the next move',
- how:['Receive the assembled context','Reason, then produce either a final answer or tool calls','Return tool-call arguments as structured JSON','The harness validates arguments against each tool’s schema'],
- design:['Keep the provider swappable behind one interface','Route easy steps to small, fast models and hard steps to large ones','Low temperature for tool use; structured output for decisions','A fallback model and retries with backoff for outages'],
- risks:[['Hallucinated or malformed tool arguments','schema validation, return the error to the model, retry'],['Jailbreak attempts','instruction hierarchy, the model’s safety training, plus input guardrails'],['Provider outage or rate limits','fallback models, retries, request queuing']]},
-ctrl:{name:'Loop controller',sub:'Decide whether to act again or stop',
- how:['Read the model’s output: tool calls or a final answer','Update the plan or todo list and record progress','Check stop conditions: task done, step limit, token or cost budget, time limit','Dispatch the next action, or hand the final answer to output checks'],
- design:['An explicit plan for long tasks that the model can revise','Hard budgets: max steps, tokens, cost, wall-clock time','Retry policy that feeds errors back to the model','A verifier step before declaring the task complete'],
- risks:[['Infinite loops','step caps and repeated-call detection'],['Stopping too early','completion checks against the plan, or a verifier pass'],['Runaway cost','hard budget limits with a kill switch']]},
-guard:{name:'Guardrails',sub:'Three checkpoints: input, action, output',
- how:['Input: screen for jailbreaks, prompt injection, PII, and policy violations before the content reaches the model','Action: check every tool call against permissions; high-risk calls pause for a human to approve, edit, or reject','Output: validate the format, filter unsafe content, redact secrets and personal data','Log every block and approval for audit'],
- design:['Least privilege: each agent gets only the tools and scopes it needs','Allowlists for domains, shell commands, and file paths','Risk tiers: reads run automatically, writes need confirmation, irreversible actions always need a human','Layer rules, classifiers, and model judgment, since no single check is enough'],
- risks:[['Jailbreaks and role-play tricks','input classifiers, and system policy that always outranks user text'],['Prompt injection inside tool results or web pages','treat results as data; content can never grant new permissions; confirm sensitive actions'],['Data exfiltration','network egress allowlists, no secrets in the context'],['Blocking legitimate requests','track false positives in evals and tune thresholds']]},
-act:{name:'Action layer',sub:'Where the agent actually does things',
- how:['Tools and MCP: validated arguments → call the API → result returned with the matching call id','Code execution: run in a sandbox with CPU, memory, and time limits, and no network by default','Filesystem: route each path to a backend, like scratch space, durable storage, or a real workspace','Sub-agents: hand off a task with a fresh context and get back only a summary (sync, async, or scripted fan-out)'],
- design:['Fewer, well-described tools beat many vague ones','Timeouts, retries, and idempotent tools wherever possible','Run independent calls in parallel','Use sub-agents to keep heavy work out of the main context'],
- risks:[['Destructive actions','dry runs, confirmation, backups, undo'],['Sandbox escape or host damage','isolated containers or VMs, never the host disk in production'],['Tool sprawl confusing the model','curate tools, group them, load them on demand']]},
-cm:{name:'Context management',sub:'Keep the window small and useful on long tasks',
- how:['Count tokens on every turn','Offload large tool results to files, keeping a reference and a short preview','Summarize older turns when nearing the limit, keeping recent turns word for word','Isolate heavy subtasks in sub-agents so only results come back'],
- design:['Thresholds: offload above N tokens, summarize at a set share of the window','Structured summaries: goal, decisions, open questions, key facts','Re-read offloaded files on demand instead of keeping them in context','Retrieval beats raw dumps'],
- risks:[['A critical detail lost in a summary','keep the originals in files and re-read them when needed'],['Summary drift over many compressions','structured summaries that carry decisions forward explicitly'],['Agent forgets offloaded content exists','leave clear references and file paths in context']]},
-state:{name:'State and memory',sub:'Short-term state per session, long-term memory across sessions',
- how:['Short-term: checkpoint after every step, keyed by session id, so runs can pause, resume, replay, and fork','Long-term write: the agent saves during the run (hot path), or a background job extracts memories afterward','Store each item by namespace (user, team) and key, with a timestamp and its source','Index items with embeddings; the next run recalls the top matches into context','Merge or patch existing items instead of duplicating; expire stale ones'],
- design:['Memory types: semantic (facts, profile), episodic (past runs, examples), procedural (instructions, skills)','Shape: one profile document vs. a collection of many items','Scratch paths vs. durable paths for files','Storage: Postgres with vectors, or a dedicated vector store'],
- risks:[['Memory poisoning: injected text saved as a “fact”','only save from trusted sources, validate writes, review high-impact memories'],['Leaks between users','a namespace per user and access checks on every read'],['Privacy and retention','let users view and delete memories; set retention limits'],['Bloat and contradictions','dedupe, merge, prefer recent']]},
-loop:{name:'The inner loop',sub:'Repeat until the job is done',
- how:['Each turn rebuilds the context with the latest results and memory','The model decides the next step; the controller checks budgets and progress','Guardrails gate every action; results are compressed and checkpointed','The loop ends on a final answer, a stop condition, or a human interrupt'],
- design:['Typical tasks take a handful to dozens of turns','Checkpoint every turn so a crash resumes instead of restarting','Stream progress so users see what’s happening'],
- risks:[['Error compounding over many turns','verify intermediate results, keep plans explicit'],['Context growing every turn','offload, summarize, delegate'],['Users left waiting','stream steps and allow interrupting']]},
-out:{name:'Outputs',sub:'Deliver results safely',
- how:['The final answer passes the output guardrails','Format it: text, schema-validated JSON, or files','Stream it progressively to the user or caller','Log real-world actions with who, what, and when'],
- design:['Stream tokens plus progress events','Cite sources for factual claims','Structured output for downstream systems'],
- risks:[['Wrong or unsafe content','output checks and a verifier pass'],['Leaking secrets or personal data','redaction before anything leaves'],['Irreversible actions','confirmation plus an audit trail']]},
-obs:{name:'Observe and evaluate',sub:'Know whether it’s working, and why not',
- how:['Trace every model call and tool call with inputs, outputs, latency, tokens, and cost','Offline evals: test sets with expected outcomes, run on every change','Online evals: sample production traces and score them with LLM judges and human review','Collect user feedback: ratings and corrections'],
- design:['Trace ids linked to session and user','Dashboards for cost, latency, and error rates','Regression gates before deploying','Red-team sets for jailbreaks and prompt injection'],
- risks:[['Silent regressions','evals in CI and before each release'],['Biased LLM judges','calibrate them against human labels'],['Sensitive data in logs','redact traces and restrict access']]},
-improve:{name:'The outer loop: improve',sub:'Feedback flows back into the context sources',
- how:['Turn each failure into a new eval case','Update instructions, skills, and tool descriptions','Refine what gets remembered and how it’s recalled','Ship changes as versioned configs that can be rolled back'],
- design:['Version prompts, skills, and tool sets like code','A/B test changes on real traffic','Let the agent propose memory and skill updates, with review'],
- risks:[['Fixing one case breaks others','rerun the full eval suite on every change'],['Self-modifying agents drifting','human review for changes to instructions and skills']]},
-rt:{name:'Runtime',sub:'Run reliably, at scale, for a long time',
- how:['Durable execution: each step is checkpointed, so a crash resumes instead of restarting','Task queues and workers handle long and background runs','Concurrency control per session handles users sending messages mid-run','Deploy as a versioned service and scale workers horizontally'],
- design:['A database for state and memory, a queue or stream for jobs and events','Timeouts, heartbeats, and cancellation for every run','Secrets kept in a vault and injected at run time','Isolation per tenant'],
- risks:[['Lost work on a crash','durable checkpoints'],['Hung runs','timeouts and cancellation'],['Leaked secrets','never put them in prompts, context, or logs']]},
-instr:{name:'Instructions',sub:'The standing orders: role, rules, policies',
- how:['Write the role, goals, and rules once, as the system prompt','Put non-negotiable policy first, so it outranks anything that comes later','Add per-user or per-team preferences recalled from memory','Keep it stable across turns so it can be cached'],
- design:['Short and specific beats long and vague','Separate fixed policy from user-editable preferences','Version instructions like code, with tests'],
- risks:[['Users trying to override the rules','an instruction hierarchy where system policy always wins'],['Instructions growing into a wall of text','move detailed procedures into skills'],['Conflicting rules','review them and test against eval cases']]},
-mem:{name:'Memory recall',sub:'Bring the right memories into this turn',
- how:['Build a search query from the current request','Search the user’s namespace by meaning (embeddings) and by exact keys','Rank by relevance and recency, keep only the top few','Insert them as clearly labeled data, with their dates and sources'],
- design:['A profile loaded every time; collection items retrieved on demand','A fixed budget, such as the top five items','Give the agent a memory search tool for deeper digs'],
- risks:[['Irrelevant recalls distracting the model','relevance thresholds and a small top-k'],['Another user’s memories showing up','always filter by the caller’s namespace'],['Outdated facts','prefer recent items and show their dates']]},
-skills:{name:'Skills',sub:'On-demand know-how for specific tasks',
- how:['Each skill is a folder with a SKILL.md: a short header plus detailed steps','Only skill names and descriptions sit in context by default','When a task matches, the agent reads the full skill file','Once loaded, the full text stays in this conversation'],
- design:['One skill per workflow or domain','Descriptions that say exactly when to use the skill','Skills can bundle scripts, templates, and examples'],
- risks:[['A skill that never gets used','sharpen its description and test triggering in evals'],['Overlapping skills confusing the choice','merge or narrow them'],['Untrusted third-party skills','review them first, since they act like instructions']]},
-toolspec:{name:'Tool specs',sub:'Tell the model what it can do',
- how:['Each tool has a name, a description, and an argument schema','Only tools allowed for this user and task are included','Large tool sets are filtered or loaded on demand','MCP servers supply specs for tools in external systems'],
- design:['Name tools by intent; say when to use them and when not to','Small, typed argument schemas','Group related tools and hide rarely used ones'],
- risks:[['The model picks the wrong tool','clearer descriptions and fewer overlapping tools'],['A malicious MCP server with poisoned descriptions','vet servers and treat their text as untrusted'],['Too many tools wasting context','select tools dynamically per task']]},
-hist:{name:'History',sub:'The conversation so far',
- how:['Load the session’s messages from the latest checkpoint','Keep the most recent turns word for word','Replace older turns with a running summary','Offload bulky tool outputs, keeping short references'],
- design:['A token budget for history','Never separate a tool call from its result','Pin key messages, such as the original goal'],
- risks:[['Losing sight of the original goal','pin it, or restate it in every summary'],['Broken tool-call pairs after trimming','trim only on turn boundaries']]},
-tools:{name:'Tools and MCP',sub:'Call functions and external systems',
- how:['The model emits a tool call with JSON arguments','The harness validates the arguments against the schema','Permissions are checked, then the function or API runs with a timeout','The result returns with the matching call id, truncated or offloaded if large'],
- design:['Idempotent tools wherever possible, so retries are safe','Error messages the model can act on','Parallel calls for independent lookups'],
- risks:[['Tool results carrying injected instructions','treat output as data; it can’t trigger privileged actions'],['Hanging calls','timeouts and circuit breakers'],['Credential misuse','scoped, short-lived tokens per user']]},
-code:{name:'Code execution',sub:'Run code safely',
- how:['The agent writes a script or an interpreter snippet','It runs in an isolated sandbox with CPU, memory, and time limits','The harness captures output, errors, and files produced','A summary and file references go back to the model'],
- design:['A container or microVM per session','No network by default; allowlist when needed','An interpreter for quick logic, a full sandbox for real workloads'],
- risks:[['Escaping to the host','strong isolation; never run on the host in production'],['Resource abuse','limits and monitoring'],['Data exfiltration through code','network egress controls']]},
-fs:{name:'Filesystem',sub:'The agent’s working space',
- how:['The agent uses file tools: list, read, write, edit, search','A router maps each path prefix to a storage backend','Scratch paths vanish with the session, durable paths persist, workspace paths hit real files','Large results are written here instead of into the context'],
- design:['Clear conventions for where memories, drafts, and outputs go','Virtual roots so the agent can’t escape its folder','Separate storage per user'],
- risks:[['Writing outside the allowed area','path allowlists and virtual roots'],['Overwriting important files','versioning and confirmation for deletes'],['Saving memories to a scratch path','spell out the conventions in the instructions']]},
-sub:{name:'Sub-agents',sub:'Delegate work with a clean context',
- how:['The main agent calls a delegate tool with a task and a target sub-agent','The sub-agent runs with its own fresh context and tools','It returns only a final summary or a structured result','Async sub-agents run in the background; the main agent checks, steers, or cancels them'],
- design:['Sync for short tasks, async for long ones, scripted fan-out for many items','Specific descriptions so the right sub-agent gets picked','Structured results that are easy to merge'],
- risks:[['Errors compounding across agents','verify sub-agent results'],['Cost blowups from fan-out','cap parallelism and budgets'],['Missing context in the hand-off','pass the needed facts explicitly in the task']]},
-all:{name:'Use it as a checklist',sub:'Click any block to see how it works',
- how:['Map each block to how your framework implements it','Mark which blocks come built in and which you must add','The missing blocks are where production failures usually happen'],
- design:['Security lives in three places: input, action, and output','Memory needs both a write path and a recall path','Context is a budget: assemble, compress, isolate'],
- risks:[['Shipping without evals','you can’t tell if changes help'],['Shipping without guardrails','one injected instruction can trigger real actions'],['Shipping without durability','long runs fail and start over']]}
+all:{name:'Overview',tag:'the whole picture',sub:'Memory operations before, inside, and after the loop',
+ how:['Before the loop: read every memory type, run deterministic checks, retrieve relevant tools, build a memory-aware context','Inside the loop: the model acts; the agent can trigger memory tools; the harness offloads and summarizes','After the loop: write workflow, entities, and the final answer back to memory','Next session starts from richer memory, so the agent improves over time'],
+ design:['Harness-run operations happen every time, on fixed rules','Agent-triggered operations happen when the model decides','Every memory type is a store behind one memory manager','The context window is partitioned, one heading per memory type'],
+ risks:[['Relying only on the agent to save memories','also write deterministically after every run'],['Context overflow on long sessions','an 80% threshold that triggers summarization'],['Memory that’s never recalled','retrieval at the start of every run']]},
+entry:{name:'Entry points',tag:'start condition',sub:'A request starts the loop',
+ how:['Authenticate the caller and resolve the user and thread ids','The user query plus a thread id is the start condition for the loop','Normalize text, files, and events into one message format','Route to a run, a queue, or a scheduled job'],
+ design:['Thread id scopes conversational memory to a session','Sync chat vs. background jobs vs. scheduled runs','Mark external payloads as trusted or untrusted at the door'],
+ risks:[['Spoofed identity','verify auth at the edge'],['Floods and abuse','rate limits and quotas'],['Malicious payloads in emails or uploads','tag them as untrusted data']]},
+ctx:{name:'Context assembly',tag:'harness-run · before the loop',sub:'Build a memory-aware context window',
+ how:['Read each memory type through the memory manager','Lay the context window out in partitions, each under its own markdown heading','If usage is at or above 80%, summarize first','Retrieve only the tools relevant to this query','Write the user query to conversation memory, then build the messages'],
+ design:['A token budget for every partition','Each partition says how and when to use that memory','Retrieved content is labeled as data, never as instructions'],
+ risks:[['Too much memory crowding the window','budgets and top-k retrieval'],['Prompt injection hidden in recalled memory','label it as data; policy always outranks it'],['Stale memories','timestamps and recency weighting']]},
+read:{name:'Pre-loop memory reads',tag:'harness-run · before the loop',sub:'What each partition is filled with',
+ how:['Conversation: recent, unsummarized messages for this thread','Knowledge base: documents semantically similar to the query','Workflow: steps that worked for similar past requests','Entity: people, places, and organizations seen before','Summary: ids and descriptions of compressed history'],
+ design:['Read in parallel; assemble in a fixed order','Semantic search for knowledge, workflow, and entities','Recency for conversation'],
+ risks:[['Irrelevant recalls','relevance thresholds'],['Another user’s data','filter every read by user and thread'],['Slow startup','cache and index the stores']]},
+sysprompt:{name:'Memory-aware system prompt',tag:'harness-run',sub:'Tell the model what memory it has and how to use it',
+ how:['Sent in the system role, which carries more weight than user text','Describe each memory type the agent has access to','Explain how the context window is partitioned','Say when to use each memory, and which memory tools exist'],
+ design:['Markdown headings give a hierarchy models already understand from training data','Short usage notes under every heading','Put fixed policy first, preferences after'],
+ risks:[['The model ignores a memory partition','explicit usage instructions per heading'],['Users overriding the rules','system policy always outranks user and memory text'],['Prompt bloat','move detailed procedures into skills']]},
+check:{name:'80% context check',tag:'harness-run',sub:'Deterministic summarization before it overflows',
+ how:['Measure how full the context window is','If usage is at or above 80%, summarize older messages automatically','Store the summary with an id and a short description','Mark the original messages as summarized so they drop out of the window'],
+ design:['The harness does this, not the model, so it always happens','The same operation is also offered to the agent as a tool','Tune the threshold to the model’s window and task length'],
+ risks:[['Losing details in the summary','keep originals; the agent can expand a summary by id'],['Summarizing mid-task','summarize on turn boundaries'],['Summary drift','structured summaries']]},
+toolret:{name:'Tool retrieval',tag:'harness-run · before the loop',sub:'Give the model only the tools it needs',
+ how:['Tool descriptions are embedded and stored in the toolbox','Search the toolbox with the current query','Pass only the most relevant tools to the model','Keep a few core tools always available'],
+ design:['Scales to large toolboxes without flooding the context','Fewer tools means better tool choice','Good descriptions matter more than names'],
+ risks:[['The needed tool isn’t retrieved','always include core tools; offer a tool search tool'],['Poisoned tool descriptions from third parties','vet tools before registering them'],['Tool churn between turns','retrieve once per run']]},
+conv:{name:'Conversational memory',tag:'memory store',sub:'Messages, scoped to a thread',
+ how:['Write: the user query before the loop, the final answer after it','Each row has role, content, thread id, time','Read: recent, unsummarized messages for this thread','Summarized messages are marked and replaced by a summary'],
+ design:['Thread-scoped, so sessions stay separate','Raw text kept for exact recall','Pairs with summary memory for long threads'],
+ risks:[['Unbounded growth','80% summarization'],['Cross-thread leakage','filter by thread id'],['Sensitive data retained','retention limits and deletion']]},
+kb:{name:'Knowledge base',tag:'memory store · semantic',sub:'Documents and facts the agent has learned',
+ how:['Write: the agent saves documents, like fetching and storing a paper','Content is chunked and embedded','Read: semantic search with the current query','Top matches go into the Knowledge base partition'],
+ design:['Chunk size and overlap tuned for retrieval','Store source and date with every chunk','Deduplicate on write'],
+ risks:[['Injected instructions inside documents','treat as data, never as instructions'],['Outdated knowledge','dates and refresh jobs'],['Duplicates crowding results','dedupe and merge']]},
+wf:{name:'Workflow memory',tag:'memory store · procedural',sub:'How past tasks were done, and how they turned out',
+ how:['After each run, record the query, the steps taken, and the outcome','Read: find workflows for similar past requests','The agent reuses steps that worked','Over time, common tasks need fewer iterations'],
+ design:['Store outcome with every workflow','Generalize steps, not just copy them','Prefer recent, successful workflows'],
+ risks:[['Repeating a bad workflow','record failures and prefer successes'],['Overfitting to one example','retrieve several, let the model adapt'],['Stale procedures after tools change','version and expire']]},
+ent:{name:'Entity memory',tag:'memory store · semantic',sub:'People, places, organizations',
+ how:['After the loop, extract entities from the final answer','Store each with its type and context','Read: entities related to the query','Lets the agent keep names and relationships straight across sessions'],
+ design:['Merge mentions of the same entity','Track where each fact came from','Separate per user'],
+ risks:[['Wrong merges of different entities','confidence scores and review'],['Personal data','consent, retention limits, deletion'],['Contradicting facts','prefer recent, keep sources']]},
+sum:{name:'Summary memory',tag:'memory store',sub:'Compressed history you can expand again',
+ how:['Created by the 80% check or by the agent’s summarize tool','Each summary has an id, a short description, and the full summary text','The context shows only ids and descriptions','When needed, the agent expands a summary by id to see the full version'],
+ design:['Just-in-time detail: compact by default, expandable on demand','Both harness-run and agent-triggered','Link summaries to the messages they replaced'],
+ risks:[['The agent can’t find old details','clear descriptions so it knows what to expand'],['Summary errors becoming “truth”','keep originals reachable'],['Too many summaries','summarize summaries']]},
+toolbox:{name:'Toolbox',tag:'memory store · semantic',sub:'Semantic tool memory',
+ how:['Register each tool with a name, description, and schema','Embed the descriptions','At the start of each run, retrieve tools by similarity to the query','Agent-triggered tools are registered here too'],
+ design:['Lets one agent have hundreds of tools','Descriptions written for retrieval and for the model','Group tools by domain'],
+ risks:[['A useful tool never surfaces','test retrieval in evals'],['Malicious tool definitions','review before registering'],['Overlapping tools','merge or narrow them']]},
+toollog:{name:'Tool logs',tag:'memory store',sub:'Context offloading',
+ how:['Inside the loop, full tool outputs are written to the tool log table','The context keeps only a short reference or preview','The agent can fetch the full output again if needed','Logs also feed workflow memory and debugging'],
+ design:['Offload above a size threshold','Store call id, arguments, output, and time','Keep logs linked to the thread'],
+ risks:[['Secrets or personal data in outputs','redact before storing'],['Unbounded storage','retention policies'],['Agent forgets the data exists','leave clear references in context']]},
+ckpt:{name:'Checkpoints',tag:'memory store',sub:'Thread state for pause, resume, and replay',
+ how:['After every step, save the run’s state for this thread','A crash or a human pause resumes instead of restarting','Old checkpoints allow replay and forking'],
+ design:['Complements memory stores: state is for one run, memory is for the future','Store in the same database for simplicity'],
+ risks:[['Lost work on a crash','checkpoint every step'],['Resuming with stale context','rebuild context on resume']]},
+mm:{name:'Memory manager',tag:'memory subsystem',sub:'One interface over all memory stores',
+ how:['A store manager creates the tables and data objects for each memory type','The memory manager exposes read and write operations for each one','The harness calls them before and after the loop','The agent calls some of them as tools inside the loop'],
+ design:['Memory types map to stores: conversational, knowledge base, workflow, entity, summary, toolbox, tool logs','Core operations: extraction, consolidation, and self-updating memory','Embeddings for semantic search; ids for exact lookups'],
+ risks:[['Memory poisoning','only write from trusted sources; validate writes'],['Leaks between users','scope every read and write'],['Bloat and contradictions','consolidate, dedupe, prefer recent']]},
+loop:{name:'Agent loop',tag:'core',sub:'Assemble, invoke, act, until a stop condition',
+ how:['Start condition: a user query enters the loop','Each iteration: the model reads the context and either calls tools or answers','Tool results are added and the loop iterates again','Stop conditions: a final answer, an error, a timeout, or max iterations'],
+ design:['A max-iterations limit on every run','A templated fallback answer if the limit is reached','The harness is the set of operations in and around this loop'],
+ risks:[['Infinite loops','max iterations and repeated-call detection'],['Silent failure at the limit','return a clear “couldn’t complete” message'],['Context growing every turn','offload and summarize inside the loop']]},
+model:{name:'Model',tag:'inside the loop',sub:'Reason over the context and choose the next move',
+ how:['Receive the assembled messages and the retrieved tools','Return either tool calls or a final answer','Tool-call arguments come back as structured JSON','The harness validates them against each tool’s schema'],
+ design:['Swappable provider behind one interface','Low temperature for tool use','Fallback model for outages'],
+ risks:[['Malformed tool arguments','schema validation and retry with the error'],['Jailbreak attempts','instruction hierarchy plus input guardrails'],['Provider outage','retries and fallbacks']]},
+ctrl:{name:'Loop controller',tag:'inside the loop',sub:'Act again, or stop?',
+ how:['Inspect the response: tool calls or a final answer','If tool calls: execute them and increment the iteration','If a final answer: exit the loop','If max iterations is reached: exit with a templated response'],
+ design:['Explicit plans for long tasks','Budgets for steps, tokens, cost, and time','Verifier pass before declaring done'],
+ risks:[['Infinite loops','iteration caps'],['Stopping too early','completion checks'],['Runaway cost','hard budget limits']]},
+guard:{name:'Guardrails',tag:'inside and around the loop',sub:'Input, action, and output checks',
+ how:['Input: screen for jailbreaks, prompt injection, and personal data before the model sees it','Action: check each tool call against permissions; risky calls wait for a human','Output: validate format, filter unsafe content, redact secrets','Memory writes: validate what gets stored'],
+ design:['Least privilege for every tool','Allowlists for domains, commands, paths','Layered rules, classifiers, and model judgment'],
+ risks:[['Jailbreaks','classifiers and system policy precedence'],['Injection in tool results or recalled memory','treat as data; content never grants permissions'],['Memory poisoning','validate before writing to long-term stores']]},
+act:{name:'Action layer',tag:'inside the loop',sub:'Where the agent does things',
+ how:['Tools and MCP: validated calls to functions and APIs','Code execution in a sandbox','Filesystem operations in a workspace','Sub-agents for delegated work','Memory tools the agent can call itself'],
+ design:['Fewer, well-described tools','Timeouts and safe retries','Parallel calls for independent work'],
+ risks:[['Destructive actions','confirmation and undo'],['Sandbox escape','strong isolation'],['Tool sprawl','tool retrieval from the toolbox']]},
+tools:{name:'Tools and MCP',tag:'inside the loop',sub:'Call functions and external systems',
+ how:['The model emits a tool call with a name and arguments','The harness finds the function and executes it','The result returns with the matching call id','Large outputs are offloaded to tool logs'],
+ design:['Idempotent tools where possible','Actionable error messages','Timeouts on every call'],
+ risks:[['Injected instructions in results','treat as data'],['Hanging calls','timeouts'],['Credential misuse','scoped tokens']]},
+code:{name:'Code execution',tag:'inside the loop',sub:'Run code safely',
+ how:['The agent writes code','It runs in an isolated sandbox with limits','Output and files come back as results'],
+ design:['No network by default','Per-session sandboxes'],
+ risks:[['Host damage','never run on the host in production'],['Data exfiltration','egress controls']]},
+fs:{name:'Filesystem',tag:'inside the loop',sub:'The agent’s working space',
+ how:['File tools for list, read, write, edit, search','Paths route to scratch, durable, or real storage','Big results can be written here instead of into context'],
+ design:['Clear path conventions','Virtual roots'],
+ risks:[['Writing outside the allowed area','allowlists'],['Overwriting files','versioning']]},
+sub:{name:'Sub-agents',tag:'inside the loop',sub:'Delegate with a clean context',
+ how:['Hand off a task to a sub-agent with its own context','Get back only a summary or structured result','Async sub-agents run in the background'],
+ design:['Context isolation keeps the main window small','Specific descriptions for routing'],
+ risks:[['Error compounding','verify results'],['Cost blowups','cap parallelism']]},
+memtools:{name:'Memory tools',tag:'agent-triggered',sub:'Memory operations the model chooses to run',
+ how:['Summarize and store: compress the conversation into summary memory','Expand summary: fetch the full text of a summary by id','Save to knowledge base: for example, fetch and store a paper','Search memory when the pre-loaded context isn’t enough'],
+ design:['Clear descriptions of when to use each tool','The same operation can be both harness-run and agent-triggered','Log every memory tool call'],
+ risks:[['The agent forgets to save','deterministic post-loop writes as a backstop'],['Saving untrusted content','validate before writing'],['Over-summarizing','keep thresholds; allow expansion']]},
+cm:{name:'Context management',tag:'inside the loop',sub:'Keep the window small while working',
+ how:['Offload tool outputs to the tool log table, keeping a reference','Summarize automatically if usage reaches 80%','Trim on turn boundaries','Isolate heavy work in sub-agents'],
+ design:['Deterministic rules, so it always happens','Originals stay retrievable','Structured summaries'],
+ risks:[['Lost details','expandable summaries and stored logs'],['Broken tool-call pairs','trim only between turns']]},
+loopback:{name:'Iterate',tag:'inside the loop',sub:'Back to the model with the new results',
+ how:['Tool results (or references to them) are added to the messages','The iteration counter goes up','The model decides again: more tools, or a final answer'],
+ design:['Each iteration sees updated context','Checkpoint every iteration'],
+ risks:[['Error compounding','verify intermediate results'],['Context creep','offload and summarize']]},
+post:{name:'Post-loop memory writes',tag:'harness-run · after the loop',sub:'Capture what this run learned',
+ how:['Write workflow: the query, the steps taken, and the outcome','Write entities detected in the final answer','Write the final answer to conversation memory with the assistant role','The next run starts with all of this available'],
+ design:['Always runs, independent of the model’s choices','Can run in the background to avoid delaying the reply','Record failures too, not only successes'],
+ risks:[['Failed writes','retries and idempotent writes'],['Saving wrong outcomes as good examples','mark success or failure'],['Memory growth','consolidation jobs']]},
+out:{name:'Outputs',tag:'after the loop',sub:'Deliver results safely',
+ how:['The final answer passes output checks','Stream it to the user','Log real-world actions for audit'],
+ design:['Structured output for downstream systems','Cite sources for factual claims'],
+ risks:[['Unsafe or wrong content','output checks'],['Leaking secrets','redaction']]},
+obs:{name:'Observe and evaluate',tag:'around everything',sub:'Is it working, and is memory helping?',
+ how:['Trace every model call, tool call, and memory operation','Track context usage per partition','Evaluate answers and memory: was the right memory recalled and used?','Collect user feedback'],
+ design:['Memory-specific evals: recall accuracy, staleness, contradictions','Regression tests before changes'],
+ risks:[['Silent memory regressions','memory evals in CI'],['Sensitive data in traces','redaction']]},
+rt:{name:'Runtime',tag:'underneath',sub:'Run reliably, at scale',
+ how:['Durable execution with checkpoints','Queues and workers for background memory jobs','Concurrency control per thread','Versioned deployments'],
+ design:['One database for state and memory stores','Timeouts and cancellation'],
+ risks:[['Lost work on a crash','checkpoints'],['Leaked secrets','never in prompts or logs']]}
 };
+var ALIAS={'c-conv':'conv','s-conv':'conv','c-kb':'kb','s-kb':'kb','c-wf':'wf','s-wf':'wf','c-ent':'ent','s-ent':'ent','c-sum':'sum','s-sum':'sum','s-toolbox':'toolbox','s-toollog':'toollog','s-ckpt':'ckpt'};
+var GROUP={conv:['c-conv','s-conv'],kb:['c-kb','s-kb'],wf:['c-wf','s-wf'],ent:['c-ent','s-ent'],sum:['c-sum','s-sum'],toolbox:['s-toolbox','toolret'],toollog:['s-toollog'],ckpt:['s-ckpt']};
+var ADJ={entry:['eIn'],ctx:['eIn','eRead','eCM'],sysprompt:['eCM'],check:['eRead'],toolret:['eRead'],conv:['eRead','eWrite'],kb:['eRead','eMemTool'],wf:['eRead','eWrite'],ent:['eRead','eWrite'],sum:['eRead','eMemTool','eOff'],toolbox:['eRead'],toollog:['eOff'],ckpt:[],mm:['eRead','eMemTool','eOff','eWrite'],loop:['eCM','eStop','eLoop'],model:['eCM','eMC','eLoop'],ctrl:['eMC','eCG'],guard:['eCG','eGA'],act:['eGA','eAC'],tools:['eGA','eAC'],code:['eGA','eAC'],fs:['eGA','eAC'],sub:['eGA','eAC'],memtools:['eGA','eMemTool'],cm:['eAC','eOff','eLoop'],post:['eStop','eWrite','eOut'],out:['eOut','eObs'],obs:['eObs'],rt:[]};
 var S=[
 {n:['entry'],e:null,d:'entry'},
-{n:['ctx'],e:'e1',d:'ctx'},
-{n:['model'],e:'e2',d:'model'},
-{n:['ctrl'],e:'e3',d:'ctrl'},
-{n:['guard'],e:'e4',d:'guard'},
-{n:['act','tools','code','fs','sub'],e:'e5',d:'act'},
-{n:['cm'],e:'e6',d:'cm'},
-{n:['state'],e:'e7',d:'state'},
-{n:['model'],e:'e8',d:'loop'},
-{n:['out'],e:'e9',d:'out'},
-{n:['obs'],e:'e10',d:'obs'},
-{n:['ctx'],e:'e11',d:'improve'},
+{n:['ctx'],e:'eIn',d:'ctx'},
+{n:['mm','c-conv','c-kb','c-wf','c-ent','c-sum','s-conv','s-kb','s-wf','s-ent','s-sum'],e:'eRead',d:'read'},
+{n:['sysprompt'],e:null,d:'sysprompt'},
+{n:['check','s-sum'],e:null,d:'check'},
+{n:['toolret','s-toolbox'],e:null,d:'toolret'},
+{n:['model'],e:'eCM',d:'model'},
+{n:['ctrl'],e:'eMC',d:'ctrl'},
+{n:['guard'],e:'eCG',d:'guard'},
+{n:['act','tools','code','fs','sub','memtools'],e:'eGA',d:'act'},
+{n:['memtools','s-sum','s-kb'],e:'eMemTool',d:'memtools'},
+{n:['cm','s-toollog'],e:'eAC',x:['eOff'],d:'cm'},
+{n:['model'],e:'eLoop',d:'loopback'},
+{n:['loop'],e:null,d:'loop'},
+{n:['post','s-wf','s-ent','s-conv'],e:'eStop',x:['eWrite'],d:'post'},
+{n:['out'],e:'eOut',d:'out'},
+{n:['obs'],e:'eObs',d:'obs'},
 {n:['rt'],e:null,d:'rt'},
 {n:null,e:null,d:'all'}
 ];
-var ALL=['entry','ctx','instr','mem','skills','toolspec','hist','model','ctrl','guard','act','tools','code','fs','sub','cm','state','out','obs','rt'];
-var ADJ={entry:['e1'],ctx:['e1','e2','e11'],instr:['e2'],mem:['e2'],skills:['e2'],toolspec:['e2'],hist:['e2'],model:['e2','e3','e8'],ctrl:['e3','e4'],guard:['e4','e5','e9'],act:['e5','e6'],tools:['e5','e6'],code:['e5','e6'],fs:['e5','e6'],sub:['e5','e6'],cm:['e6','e7'],state:['e7','e8'],out:['e9','e10'],obs:['e10','e11'],rt:[]};
-var ORDER=['entry','ctx','instr','mem','skills','toolspec','hist','model','ctrl','guard','act','tools','code','fs','sub','cm','state','out','obs','rt'];
+var ORDER=['entry','ctx','sysprompt','conv','kb','wf','ent','sum','toolret','check','loop','model','ctrl','guard','act','tools','code','fs','sub','memtools','cm','post','out','obs','mm','toolbox','toollog','ckpt','rt'];
+var TAGC={'memory store':'var(--accent-border)','agent-triggered':'var(--warning)'};
 var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var $=function(id){return document.getElementById(id)};
 var comet=$('comet'),cd=comet.querySelectorAll('circle'),flow=$('flow'),pulse=$('pulse'),panel=$('panel');
 var last=S.length-1,mode='explore',sel=null,cur=-1,box=null,curEdge=null,stepStart=performance.now(),tourI=0,MOVE=500,HOLD=9000,raf;
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
 function ease(k){return k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2}
+function node(n){return $('n-'+n)}
 function fill(key,num){var d=D[key];
-  $('pnum').textContent=num||'';$('pname').textContent=d.name;$('psub').textContent=d.sub;
+  $('pnum').textContent=num||'';$('pname').textContent=d.name;$('psub').textContent=d.sub;$('ptag').textContent=d.tag||'';
+  var acc='var(--accent-border)';for(var k in TAGC){if((d.tag||'').indexOf(k)===0)acc=TAGC[k]}
+  panel.style.setProperty('--acc',acc);
   $('ph').innerHTML=d.how.map(function(x){return '<li>'+esc(x)+'</li>'}).join('');
   $('pd').innerHTML=d.design.map(function(x){return '<li>'+esc(x)+'</li>'}).join('');
   $('pr').innerHTML=d.risks.map(function(x){return '<li><span class="rk">'+esc(x[0])+'</span> → '+esc(x[1])+'</li>'}).join('');}
@@ -312,20 +386,24 @@ function select(key){
   mode='explore';cur=-1;$('bPlay').classList.remove('on');$('bPlay').textContent='Play tour';
   clearAll();sel=key;curEdge=null;
   if(key==='all'){fill('all','');box=null;$('cnt').textContent='';return}
-  $('n-'+key).classList.add('on');(ADJ[key]||[]).forEach(function(e){$(e).classList.add('seen')});
-  if(key==='act')['tools','code','fs','sub'].forEach(function(n){$('n-'+n).classList.add('lit')});
-  if(key==='ctx')['instr','mem','skills','toolspec','hist'].forEach(function(n){$('n-'+n).classList.add('lit')});
-  fill(key,'');box=$('n-'+key).dataset.b.split(',').map(Number);
+  var ids=GROUP[key]||[key];ids.forEach(function(n){node(n).classList.add('on')});
+  (ADJ[key]||[]).forEach(function(e){$(e).classList.add('seen')});
+  if(key==='act')['tools','code','fs','sub','memtools'].forEach(function(n){node(n).classList.add('lit')});
+  if(key==='ctx')['sysprompt','c-conv','c-kb','c-wf','c-ent','c-sum','toolret','check'].forEach(function(n){node(n).classList.add('lit')});
+  if(key==='mm')['s-conv','s-kb','s-wf','s-ent','s-sum','s-toolbox','s-toollog','s-ckpt'].forEach(function(n){node(n).classList.add('lit')});
+  if(key==='loop')['model','ctrl','guard','act','cm'].forEach(function(n){node(n).classList.add('lit')});
+  fill(key,'');box=node(ids[0]).dataset.b.split(',').map(Number);
   var idx=ORDER.indexOf(key);$('cnt').textContent=(idx+1<10?'0':'')+(idx+1)+' / '+ORDER.length;
 }
 function setStep(i){
   if(i===cur)return;cur=i;var s=S[i];clearAll();
-  for(var j=0;j<i;j++){if(S[j].e)$(S[j].e).classList.add('seen');if(S[j].n)S[j].n.forEach(function(n){$('n-'+n).classList.add('lit')})}
-  if(i>=last-1)S.forEach(function(x){if(x.e)$(x.e).classList.add('seen')});
-  (i===last?ALL:s.n).forEach(function(n){$('n-'+n).classList.add('on')});
+  for(var j=0;j<i;j++){if(S[j].e)$(S[j].e).classList.add('seen');(S[j].x||[]).forEach(function(e){$(e).classList.add('seen')});if(S[j].n)S[j].n.forEach(function(n){node(n).classList.add('lit')})}
+  if(i===last){S.forEach(function(x){if(x.e)$(x.e).classList.add('seen');(x.x||[]).forEach(function(e){$(e).classList.add('seen')})});document.querySelectorAll('.nd').forEach(function(g){g.classList.add('lit')})}
+  if(s.n)s.n.forEach(function(n){node(n).classList.add('on')});
   curEdge=s.e;if(s.e){$(s.e).classList.add('on');flow.setAttribute('d',$(s.e).getAttribute('d'))}
+  (s.x||[]).forEach(function(e){$(e).classList.add('on')});
   fill(s.d,(i+1<10?'0':'')+(i+1));$('cnt').textContent=(i+1<10?'0':'')+(i+1)+' / '+S.length;
-  box=s.n?$('n-'+s.n[0]).dataset.b.split(',').map(Number):null;
+  box=s.n?node(s.n[0]).dataset.b.split(',').map(Number):null;
 }
 function draw(k,t){
   var ke=ease(Math.min(1,k)),e=mode==='tour'?curEdge:null;
@@ -348,15 +426,15 @@ function step(d){
   if(mode==='tour'){tour(tourI+d);return}
   var idx=sel&&sel!=='all'?ORDER.indexOf(sel):-1;select(ORDER[(idx+d+ORDER.length)%ORDER.length]);
 }
-document.querySelectorAll('.nd').forEach(function(g){g.addEventListener('click',function(ev){ev.stopPropagation();select(g.id.slice(2))})});
+document.querySelectorAll('.nd').forEach(function(g){g.addEventListener('click',function(ev){ev.stopPropagation();var id=g.id.slice(2);select(ALIAS[id]||id)})});
 $('bOverview').addEventListener('click',function(){select('all')});
 $('bPrev').addEventListener('click',function(){step(-1)});
 $('bNext').addEventListener('click',function(){step(1)});
-$('bPlay').addEventListener('click',function(){if(mode==='tour'){var sn=S[tourI].n;select(sn?sn[0]:'all')}else{tour(0);this.classList.add('on');this.textContent='Stop tour'}});
+$('bPlay').addEventListener('click',function(){if(mode==='tour'){var sn=S[tourI].n;select(sn?(ALIAS[sn[0]]||sn[0]):'all')}else{tour(0);this.classList.add('on');this.textContent='Stop tour'}});
 window.addEventListener('keydown',function(ev){if(ev.key==='ArrowRight')step(1);if(ev.key==='ArrowLeft')step(-1);if(ev.key==='Escape')select('all')});
-function fit(){var sc=Math.max(.75,Math.min(1,window.innerWidth/1200));$('frame').style.transform='scale('+sc+')'}
+function fit(){var sc=Math.min(window.innerWidth/1200,window.innerHeight/1215);$('frame').style.transform='scale('+sc+')'}
 window.addEventListener('resize',fit);
-window.__frame=function(stp,k,t){cancelAnimationFrame(raf);$('frame').style.transform='none';$('hint').style.display='none';$('ctrl').style.display='none';mode='tour';curEdge=null;cur=-1;setStep(stp);draw(k,t)};
+window.__frame=function(stp,k,t){cancelAnimationFrame(raf);$('frame').style.transform='none';$('ctrl').style.display='none';$('frame').classList.add('noctrl');mode='tour';curEdge=null;cur=-1;setStep(stp);draw(k,t)};
 window.__select=function(key){cancelAnimationFrame(raf);$('frame').style.transform='none';select(key);draw(1,0)};
 window.__steps=S.length;window.__edges=S.map(function(s){return !!s.e});
 select('all');fit();raf=requestAnimationFrame(loop);

@@ -546,12 +546,17 @@ function Index() {
                 ],
                 [
                   "05",
+                  "Learning docs",
+                  "Interactive notes on ML systems",
+                  "#learning",
+                ],
+                [
+                  "06",
                   "Technical toolkit",
                   "Languages, frameworks, and infrastructure",
                   "#toolkit",
                 ],
-                ["06", "Education", "Academic background", "#education"],
-                ["07", "Learning", "Notes and visual guides", "#learning"],
+                ["07", "Education", "Academic background", "#education"],
               ].map(([number, label, description, href]) => (
                 <a href={href} onClick={closeIndex} key={href}>
                   <span className="index-number">{number}</span>
@@ -790,6 +795,36 @@ function Index() {
             </div>
           </section>
 
+          <section id="learning">
+            <SectionHeading
+              title="Learning docs"
+              count={learningDocs.length}
+              description="Interactive notes I build while learning ML systems."
+            />
+            <div className="entry-list">
+              {learningDocs.map((doc) => (
+                <article className="entry-card project-card" key={doc.title}>
+                  <h3>
+                    <a
+                      className="project-title-link"
+                      href={doc.href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {doc.title} <ArrowUpRight aria-hidden="true" />
+                    </a>
+                  </h3>
+                  <div className="tags">
+                    {doc.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <p>{doc.summary}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section id="toolkit">
             <SectionHeading
               title="Technical toolkit"
@@ -862,6 +897,7 @@ function Index() {
             <a href="#experience">Experience</a>
             <a href="#projects">Projects</a>
             <a href="#publications">Publications & Patents</a>
+            <a href="#learning">Learning docs</a>
             <a href="#toolkit">Toolkit</a>
             <a href="#education">Education</a>
             <a href="#learning">Learning</a>
